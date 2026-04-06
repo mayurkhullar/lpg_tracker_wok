@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/daily_entry.dart';
+import '../models/purchase.dart';
 import '../providers/app_providers.dart';
 import '../utils/date_utils.dart';
 import '../widgets/metric_card.dart';
+import '../services/purchase_repository.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -21,9 +23,28 @@ class DashboardScreen extends ConsumerWidget {
     return '${entry.usage.toStringAsFixed(2)} kg';
   }
 
+  String _currencyDisplay(double? value) {
+    if (value == null) return '—';
+    return '₹${value.toStringAsFixed(2)}';
+  }
+
+  double? _dailyGasCost({
+    required DailyEntry? entry,
+    required List<Purchase> purchases,
+    required PurchaseRepository purchaseRepository,
+  }) {
+    if (entry == null) return null;
+    final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(entry.date, purchases);
+    if (costPerCylinder == null) return null;
+    final costPerKg = costPerCylinder / gasPerCylinder;
+    return entry.usage * costPerKg;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entries = ref.watch(dailyEntriesProvider).value ?? [];
+    final purchases = ref.watch(purchasesProvider).value ?? [];
+    final purchaseRepository = ref.watch(purchaseRepositoryProvider);
     final today = normalizeDate(DateTime.now());
 
     final todayMatches = entries.where((e) => normalizeDate(e.date) == today).toList();
@@ -38,6 +59,22 @@ class DashboardScreen extends ConsumerWidget {
         .toList();
 
     final monthlyTotal = monthEntries.fold<double>(0, (sum, e) => sum + e.usage);
+    final todayGasCost = _dailyGasCost(
+      entry: todayEntry,
+      purchases: purchases,
+      purchaseRepository: purchaseRepository,
+    );
+    var monthHasCost = false;
+    final monthlyGasCost = monthEntries.fold<double>(0, (sum, entry) {
+      final dailyCost = _dailyGasCost(
+        entry: entry,
+        purchases: purchases,
+        purchaseRepository: purchaseRepository,
+      );
+      if (dailyCost == null) return sum;
+      monthHasCost = true;
+      return sum + dailyCost;
+    });
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -67,11 +104,15 @@ class DashboardScreen extends ConsumerWidget {
             ),
             MetricCard(
               title: 'Sales Today',
-              value: todayEntry == null ? '₹ 0' : '₹ ${todayEntry.sales.toStringAsFixed(2)}',
+              value: todayEntry == null ? '₹0.00' : '₹${todayEntry.sales.toStringAsFixed(2)}',
             ),
             MetricCard(
               title: 'Yesterday Usage',
               value: _usageDisplay(entries, yesterdayEntry),
+            ),
+            MetricCard(
+              title: 'Gas Cost Today',
+              value: _currencyDisplay(todayGasCost),
             ),
             MetricCard(
               title: 'Gas Remaining Today',
@@ -81,6 +122,10 @@ class DashboardScreen extends ConsumerWidget {
               title: 'Monthly Total',
               value: '${monthlyTotal.toStringAsFixed(2)} kg',
             ),
+            MetricCard(
+              title: 'Monthly Gas Cost',
+              value: _currencyDisplay(monthHasCost ? monthlyGasCost : null),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -89,9 +134,16 @@ class DashboardScreen extends ConsumerWidget {
         ...entries.take(3).map((entry) => Card(
               child: ListTile(
                 title: Text(DateFormat.yMMMd().format(entry.date)),
-                subtitle: Text(
-                  'Gas Used: ${_usageDisplay(entries, entry)} • Sales: ₹ ${entry.sales.toStringAsFixed(2)}',
-                ),
+                subtitle: (() {
+                  final cost = _dailyGasCost(
+                    entry: entry,
+                    purchases: purchases,
+                    purchaseRepository: purchaseRepository,
+                  );
+                  return Text(
+                    'Gas Used: ${_usageDisplay(entries, entry)} • Cost: ${_currencyDisplay(cost)} • Sales: ₹${entry.sales.toStringAsFixed(2)}',
+                  );
+                })(),
                 trailing: entry.isAnomaly
                     ? const Icon(Icons.warning_amber_rounded, color: Colors.orange)
                     : const Icon(Icons.check_circle, color: Colors.blue),
