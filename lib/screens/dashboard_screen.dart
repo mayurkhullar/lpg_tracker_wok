@@ -2,12 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../models/daily_entry.dart';
 import '../providers/app_providers.dart';
 import '../utils/date_utils.dart';
 import '../widgets/metric_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  bool _hasPreviousEntry(List<DailyEntry> entries, DateTime date) {
+    final target = normalizeDate(date);
+    return entries.any((entry) => normalizeDate(entry.date).isBefore(target));
+  }
+
+  String _usageDisplay(List<DailyEntry> entries, DailyEntry? entry) {
+    if (entry == null) return '—';
+    if (!_hasPreviousEntry(entries, entry.date)) return '—';
+    return '${entry.usage.toStringAsFixed(2)} kg';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -50,8 +62,8 @@ class DashboardScreen extends ConsumerWidget {
           childAspectRatio: 1.4,
           children: [
             MetricCard(
-              title: 'Today Usage',
-              value: todayEntry == null ? 'No entry yet' : '${todayEntry.usage.toStringAsFixed(2)} kg',
+              title: 'Gas Used Today',
+              value: _usageDisplay(entries, todayEntry),
             ),
             MetricCard(
               title: 'Sales Today',
@@ -59,7 +71,11 @@ class DashboardScreen extends ConsumerWidget {
             ),
             MetricCard(
               title: 'Yesterday Usage',
-              value: yesterdayEntry == null ? '--' : '${yesterdayEntry.usage.toStringAsFixed(2)} kg',
+              value: _usageDisplay(entries, yesterdayEntry),
+            ),
+            MetricCard(
+              title: 'Gas Remaining Today',
+              value: todayEntry == null ? '—' : '${todayEntry.gasRemaining.toStringAsFixed(2)} kg',
             ),
             MetricCard(
               title: 'Monthly Total',
@@ -73,7 +89,9 @@ class DashboardScreen extends ConsumerWidget {
         ...entries.take(3).map((entry) => Card(
               child: ListTile(
                 title: Text(DateFormat.yMMMd().format(entry.date)),
-                subtitle: Text('Usage: ${entry.usage.toStringAsFixed(2)} kg • Sales: ₹ ${entry.sales.toStringAsFixed(2)}'),
+                subtitle: Text(
+                  'Gas Used: ${_usageDisplay(entries, entry)} • Sales: ₹ ${entry.sales.toStringAsFixed(2)}',
+                ),
                 trailing: entry.isAnomaly
                     ? const Icon(Icons.warning_amber_rounded, color: Colors.orange)
                     : const Icon(Icons.check_circle, color: Colors.blue),

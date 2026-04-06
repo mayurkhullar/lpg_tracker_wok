@@ -127,6 +127,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       .toList();
 
   bool get _countChanged => _addedCylinders > 0 || _removedCylinders > 0;
+  TextStyle? _labelStyle(BuildContext context) => Theme.of(context).textTheme.titleMedium;
+  TextStyle? _valueStyle(BuildContext context) =>
+      Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +147,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       removedCylinders: _removedCylinders,
     );
     final estimatedUsage = yesterdayEntry == null
-        ? 0.0
+        ? null
         : calculateUsage(yesterdayEntry.gasRemaining, comparableGasRemaining);
 
     final statusLabel = _isEditingExistingEntry
@@ -244,6 +247,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                             inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
                             autofocus: index == 0,
                             onChanged: (_) => setState(() {}),
+                            onTap: () {
+                              _weightControllers[index].selection = TextSelection(
+                                baseOffset: 0,
+                                extentOffset: _weightControllers[index].text.length,
+                              );
+                            },
                             onFieldSubmitted: (_) {
                               if (index < _connectedCount - 1) {
                                 _weightFocusNodes[index + 1].requestFocus();
@@ -276,25 +285,48 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '--'} kg'),
-                    const SizedBox(height: 6),
+                    Text('Gas Remaining', style: _labelStyle(context)),
+                    const SizedBox(height: 4),
+                    Text('${gasRemaining.toStringAsFixed(2)} kg', style: _valueStyle(context)),
+                    const SizedBox(height: 2),
                     Text(
-                      'Live gas remaining: ${gasRemaining.toStringAsFixed(2)} kg',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      'Based on cylinder weight minus tare (19.1 kg each)',
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '—'} kg',
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Estimated Usage Today', style: _labelStyle(context)),
+                    const SizedBox(height: 4),
+                    Text(
+                      estimatedUsage == null ? '—' : '${estimatedUsage.toStringAsFixed(2)} kg',
+                      style: _valueStyle(context),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(),
+                    const SizedBox(height: 12),
                     Text('Gross total weight: ${grossTotal.toStringAsFixed(2)} kg'),
-                    const SizedBox(height: 6),
-                    Text('Estimated usage: ${estimatedUsage.toStringAsFixed(2)} kg'),
                     if (_addedCylinders > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Includes adjustment for $_addedCylinders added '
-                        'cylinder${_addedCylinders == 1 ? '' : 's'}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '+$_addedCylinders cylinder${_addedCylinders == 1 ? '' : 's'} added. Usage adjusted.',
+                          style: const TextStyle(color: Colors.orange),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 10),
+                    const Divider(),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _salesController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
