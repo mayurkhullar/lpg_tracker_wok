@@ -65,11 +65,11 @@ class DailyEntryRepository {
     final grossTotalWeight = calculateGrossTotal(weights);
     final gasRemaining = calculateGasRemaining(weights, connectedCount);
 
-    final adjustmentRefGas = weights.isEmpty
-        ? kMaxGasContentPerCylinderKg
-        : (gasRemaining / weights.length).clamp(0.0, kMaxGasContentPerCylinderKg);
-    final adjustedTodayComparableGas =
-        gasRemaining - (addedCylinders * adjustmentRefGas) + (removedCylinders * adjustmentRefGas);
+    final adjustedTodayComparableGas = calculateComparableCurrentGas(
+      gasRemaining,
+      addedCylinders: addedCylinders,
+      removedCylinders: removedCylinders,
+    );
 
     final daysDiff = previous == null ? 1 : targetDate.difference(normalizeDate(previous.date)).inDays;
     final usageAcrossGap =

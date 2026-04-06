@@ -138,8 +138,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final weights = _weights();
     final grossTotal = calculateGrossTotal(weights);
     final gasRemaining = calculateGasRemaining(weights, _connectedCount);
-    final estimatedUsage =
-        yesterdayEntry == null ? 0.0 : calculateUsage(yesterdayEntry.gasRemaining, gasRemaining);
+    final comparableGasRemaining = calculateComparableCurrentGas(
+      gasRemaining,
+      addedCylinders: _addedCylinders,
+      removedCylinders: _removedCylinders,
+    );
+    final estimatedUsage = yesterdayEntry == null
+        ? 0.0
+        : calculateUsage(yesterdayEntry.gasRemaining, comparableGasRemaining);
 
     final statusLabel = _isEditingExistingEntry
         ? 'Editing entry for ${DateFormat.yMMMd().format(_selectedDate)}'
@@ -280,6 +286,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     Text('Gross total weight: ${grossTotal.toStringAsFixed(2)} kg'),
                     const SizedBox(height: 6),
                     Text('Estimated usage: ${estimatedUsage.toStringAsFixed(2)} kg'),
+                    if (_addedCylinders > 0) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Includes adjustment for $_addedCylinders added '
+                        'cylinder${_addedCylinders == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     TextFormField(
                       controller: _salesController,
