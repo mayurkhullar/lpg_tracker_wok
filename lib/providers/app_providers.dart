@@ -41,6 +41,8 @@ final purchasesProvider = StreamProvider<List<Purchase>>((ref) {
   return ref.watch(purchaseRepositoryProvider).watchPurchases();
 });
 
+final currentTabIndexProvider = StateProvider<int>((ref) => 0);
+
 final syncStatusProvider = StreamProvider<SyncStatus>((ref) async* {
   final connectivity = Connectivity();
   await for (final result in connectivity.onConnectivityChanged) {

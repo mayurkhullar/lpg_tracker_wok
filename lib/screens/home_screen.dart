@@ -16,8 +16,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _index = 0;
-
   static const _tabs = [
     DashboardScreen(),
     EntryScreen(),
@@ -28,6 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final syncStatusAsync = ref.watch(syncStatusProvider);
+    final index = ref.watch(currentTabIndexProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -43,10 +42,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: IndexedStack(index: _index, children: _tabs),
+      body: IndexedStack(index: index, children: _tabs),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
+        selectedIndex: index,
+        onDestinationSelected: (value) => ref.read(currentTabIndexProvider.notifier).state = value,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard_outlined), label: 'Dashboard'),
           NavigationDestination(icon: Icon(Icons.edit_note), label: 'Entry'),

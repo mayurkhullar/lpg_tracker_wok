@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../models/daily_entry.dart';
 import '../providers/app_providers.dart';
 import '../utils/date_utils.dart';
 
@@ -17,6 +18,8 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   final _formKey = GlobalKey<FormState>();
   final _salesController = TextEditingController();
   final _otherReasonController = TextEditingController();
+  final _addedCylindersController = TextEditingController(text: '0');
+  final _removedCylindersController = TextEditingController(text: '0');
   final _scrollController = ScrollController();
 
   int _connectedCount = 2;
@@ -24,6 +27,8 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   int _removedCylinders = 0;
   String _reason = 'Maintenance';
   DateTime _selectedDate = normalizeDate(DateTime.now());
+  bool _isEditingExistingEntry = false;
+  bool _isLoadingEntry = false;
   List<TextEditingController> _weightControllers = [];
   List<FocusNode> _weightFocusNodes = [];
 
@@ -31,12 +36,15 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   void initState() {
     super.initState();
     _rebuildWeightFields(_connectedCount);
+    _loadEntryForSelectedDate();
   }
 
   @override
   void dispose() {
     _salesController.dispose();
     _otherReasonController.dispose();
+    _addedCylindersController.dispose();
+    _removedCylindersController.dispose();
     _scrollController.dispose();
     for (final c in _weightControllers) {
       c.dispose();
@@ -58,6 +66,60 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     _weightFocusNodes = List.generate(count, (_) => FocusNode());
   }
 
+  void _populateFormFromEntry(DailyEntry entry) {
+    final safeConnectedCount = entry.connectedCount <= 0 ? 1 : entry.connectedCount;
+    _connectedCount = safeConnectedCount;
+    _rebuildWeightFields(_connectedCount);
+
+    for (var i = 0; i < _connectedCount; i++) {
+      final weight = i < entry.weights.length ? entry.weights[i] : null;
+      _weightControllers[i].text = weight == null ? '' : weight.toStringAsFixed(2);
+    }
+
+    _salesController.text = entry.sales.toStringAsFixed(2);
+    _addedCylinders = entry.addedCylinders;
+    _removedCylinders = entry.removedCylinders;
+    _addedCylindersController.text = _addedCylinders.toString();
+    _removedCylindersController.text = _removedCylinders.toString();
+
+    const knownReasons = {'Maintenance', 'Leak Test', 'Operational Change', 'Other'};
+    if (knownReasons.contains(entry.changeReason)) {
+      _reason = entry.changeReason;
+      _otherReasonController.clear();
+    } else {
+      _reason = 'Other';
+      _otherReasonController.text = entry.changeReason;
+    }
+  }
+
+  void _resetFormForNewEntry() {
+    _connectedCount = 2;
+    _rebuildWeightFields(_connectedCount);
+    _salesController.clear();
+    _addedCylinders = 0;
+    _removedCylinders = 0;
+    _addedCylindersController.text = '0';
+    _removedCylindersController.text = '0';
+    _reason = 'Maintenance';
+    _otherReasonController.clear();
+  }
+
+  Future<void> _loadEntryForSelectedDate() async {
+    setState(() => _isLoadingEntry = true);
+    final entry = await ref.read(dailyEntryRepositoryProvider).getByDate(_selectedDate);
+    if (!mounted) return;
+
+    setState(() {
+      _isEditingExistingEntry = entry != null;
+      if (entry != null) {
+        _populateFormFromEntry(entry);
+      } else {
+        _resetFormForNewEntry();
+      }
+      _isLoadingEntry = false;
+    });
+  }
+
   List<double> _weights() => _weightControllers
       .map((c) => double.tryParse(c.text.trim()) ?? 0)
       .where((w) => w > 0)
@@ -68,11 +130,17 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   @override
   Widget build(BuildContext context) {
     final entries = ref.watch(dailyEntriesProvider).value ?? [];
-    final yesterday = entries.where((e) => normalizeDate(e.date) == _selectedDate.subtract(const Duration(days: 1))).toList();
+    final yesterday =
+        entries.where((e) => normalizeDate(e.date) == _selectedDate.subtract(const Duration(days: 1))).toList();
     final yesterdayEntry = yesterday.isEmpty ? null : yesterday.first;
 
     final totalWeight = _weights().fold<double>(0, (sum, e) => sum + e);
-    final estimatedUsage = yesterdayEntry == null ? 0.0 : (yesterdayEntry.totalWeight - totalWeight).clamp(0, 9999);
+    final estimatedUsage =
+        yesterdayEntry == null ? 0.0 : (yesterdayEntry.totalWeight - totalWeight).clamp(0, 9999);
+
+    final statusLabel = _isEditingExistingEntry
+        ? 'Editing entry for ${DateFormat.yMMMd().format(_selectedDate)}'
+        : 'Creating entry for ${DateFormat.yMMMd().format(_selectedDate)}';
 
     return Scaffold(
       body: Form(
@@ -87,17 +155,27 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(statusLabel, style: Theme.of(context).textTheme.titleMedium),
+                    if (_isLoadingEntry) ...[
+                      const SizedBox(height: 8),
+                      const LinearProgressIndicator(minHeight: 2),
+                    ],
+                    const SizedBox(height: 12),
                     Text('Date', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: () async {
+                        final now = normalizeDate(DateTime.now());
                         final date = await showDatePicker(
                           context: context,
                           firstDate: DateTime(2020),
-                          lastDate: DateTime(2100),
-                          initialDate: _selectedDate,
+                          lastDate: now,
+                          initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
                         );
-                        if (date != null) setState(() => _selectedDate = normalizeDate(date));
+                        if (date != null) {
+                          setState(() => _selectedDate = normalizeDate(date));
+                          await _loadEntryForSelectedDate();
+                        }
                       },
                       icon: const Icon(Icons.calendar_today),
                       label: Text(DateFormat.yMMMd().format(_selectedDate)),
@@ -224,7 +302,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 10),
                     TextFormField(
-                      initialValue: '0',
+                      controller: _addedCylindersController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Added cylinders',
@@ -234,7 +312,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     ),
                     const SizedBox(height: 10),
                     TextFormField(
-                      initialValue: '0',
+                      controller: _removedCylindersController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Removed cylinders',
@@ -286,6 +364,13 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
           child: FilledButton(
             onPressed: () async {
               if (!_formKey.currentState!.validate()) return;
+              final today = normalizeDate(DateTime.now());
+              if (_selectedDate.isAfter(today)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Future dates are not allowed')),
+                );
+                return;
+              }
               try {
                 await ref.read(dailyEntryRepositoryProvider).saveDailyEntry(
                       date: _selectedDate,
@@ -300,6 +385,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Entry saved successfully')),
                 );
+                ref.read(currentTabIndexProvider.notifier).state = 0;
               } catch (e) {
                 if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -307,7 +393,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 );
               }
             },
-            child: const Text('Save Daily Entry'),
+            child: Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
           ),
         ),
       ),

@@ -54,6 +54,10 @@ class DailyEntryRepository {
     required String changeReason,
   }) async {
     final targetDate = normalizeDate(date);
+    final today = normalizeDate(DateTime.now());
+    if (targetDate.isAfter(today)) {
+      throw ArgumentError('Future dates are not allowed');
+    }
     final todayId = dayId(targetDate);
 
     final previous = await getPrevious(targetDate);
