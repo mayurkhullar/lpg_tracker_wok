@@ -97,11 +97,11 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                             );
                         _quantityController.clear();
                         _costController.clear();
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context)
                             .showSnackBar(const SnackBar(content: Text('Purchase added')));
                       } catch (e) {
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context)
                             .showSnackBar(SnackBar(content: Text('Error: $e')));
                       }

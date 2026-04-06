@@ -11,8 +11,6 @@ class DailyEntryRepository {
 
   final FirestoreService _service;
 
-  static const _collection = 'daily_entries';
-
   Stream<List<DailyEntry>> watchEntries({int limit = 120}) {
     return _service.dailyEntries
         .orderBy('date', descending: true)
@@ -59,7 +57,7 @@ class DailyEntryRepository {
     final todayId = dayId(targetDate);
 
     final previous = await getPrevious(targetDate);
-    final totalWeight = weights.fold<double>(0, (sum, e) => sum + e);
+    final totalWeight = weights.fold<double>(0, (total, e) => total + e);
 
     final adjustmentRefWeight =
         weights.isEmpty ? 28.0 : (totalWeight / weights.length).clamp(19.1, 38.0);

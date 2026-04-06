@@ -245,7 +245,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     if (_countChanged) ...[
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
-                        value: _reason,
+                        initialValue: _reason,
                         items: const [
                           DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
                           DropdownMenuItem(value: 'Leak Test', child: Text('Leak Test')),
@@ -296,12 +296,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       removedCylinders: _removedCylinders,
                       changeReason: _reason == 'Other' ? _otherReasonController.text.trim() : _reason,
                     );
-                if (!mounted) return;
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Entry saved successfully')),
                 );
               } catch (e) {
-                if (!mounted) return;
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Failed to save: $e')),
                 );
