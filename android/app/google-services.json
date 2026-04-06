@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "98463600303",
+    "project_id": "lpg-tracker-wok",
+    "storage_bucket": "lpg-tracker-wok.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:98463600303:android:46ba17ffe7580a9254ce5a",
+        "android_client_info": {
+          "package_name": "com.example.lpg_tracker_wok"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRsYVBW2eiyitS3iaxY0u_s12_cxxq8ms"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
