@@ -1,41 +1,31 @@
 import 'package:flutter/material.dart';
 
-int getResponsiveColumnCount(double width) {
-  if (width < 340) return 1;
-  if (width < 900) return 2;
-  return 3;
-}
+const EdgeInsets kScreenPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 12);
+const double kSectionSpacing = 20;
+const double kGridSpacing = 12;
 
-class ResponsiveMetricGrid extends StatelessWidget {
-  const ResponsiveMetricGrid({
+class ResponsiveGrid extends StatelessWidget {
+  const ResponsiveGrid({
     super.key,
     required this.children,
-    this.spacing = 16,
+    this.childAspectRatio = 1.4,
   });
 
   final List<Widget> children;
-  final double spacing;
+  final double childAspectRatio;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = getResponsiveColumnCount(constraints.maxWidth);
-        final cardWidth =
-            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+    final isTablet = MediaQuery.of(context).size.width > 600;
 
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: [
-            for (final child in children)
-              SizedBox(
-                width: cardWidth,
-                child: child,
-              ),
-          ],
-        );
-      },
+    return GridView.count(
+      crossAxisCount: isTablet ? 3 : 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: kGridSpacing,
+      mainAxisSpacing: kGridSpacing,
+      childAspectRatio: childAspectRatio,
+      children: children,
     );
   }
 }

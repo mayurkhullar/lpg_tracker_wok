@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/app_providers.dart';
+import '../widgets/dashboard_layout.dart';
 
 class PurchasesScreen extends ConsumerStatefulWidget {
   const PurchasesScreen({super.key});
@@ -31,11 +32,18 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+        padding: EdgeInsets.fromLTRB(
+          kScreenPadding.left,
+          kScreenPadding.top,
+          kScreenPadding.right,
+          kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Form(
@@ -59,7 +67,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _costController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -74,7 +82,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: () async {
                           final picked = await showDatePicker(
@@ -88,7 +96,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                         icon: const Icon(Icons.date_range),
                         label: Text(DateFormat.yMMMd().format(_selectedDate)),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
@@ -107,7 +115,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                                   .showSnackBar(const SnackBar(content: Text('Purchase added')));
                             } catch (e) {
                               if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(content: Text('Error: $e')));
                             }
                           },
                           child: const Text('Save Purchase'),
@@ -118,23 +127,53 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            Text('Purchase History', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            ...purchases.map((p) => Card(
-                  child: ListTile(
-                    title: Text(
-                      '${p.quantity} cylinders • ₹${p.costPerCylinder.toStringAsFixed(2)} each',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(DateFormat.yMMMd().format(p.date)),
-                    trailing: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text('₹${p.totalCost.toStringAsFixed(2)}'),
+            const SizedBox(height: kSectionSpacing),
+            const SectionHeader('Purchase History'),
+            const SizedBox(height: 12),
+            ...purchases.map(
+              (p) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${p.quantity} cylinders • ₹${p.costPerCylinder.toStringAsFixed(2)} each',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              '₹${p.totalCost.toStringAsFixed(2)}',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            DateFormat.yMMMd().format(p.date),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -7,6 +7,7 @@ import '../models/daily_entry.dart';
 import '../providers/app_providers.dart';
 import '../utils/date_utils.dart';
 import '../utils/gas_calculations.dart';
+import '../widgets/dashboard_layout.dart';
 
 class EntryScreen extends ConsumerStatefulWidget {
   const EntryScreen({super.key});
@@ -160,11 +161,18 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
           key: _formKey,
           child: SingleChildScrollView(
             controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+            padding: EdgeInsets.fromLTRB(
+              kScreenPadding.left,
+              kScreenPadding.top,
+              kScreenPadding.right,
+              kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
             Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -229,10 +237,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: kSectionSpacing),
             AnimatedSize(
               duration: const Duration(milliseconds: 250),
               child: Card(
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -283,8 +293,10 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: kSectionSpacing),
             Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -316,7 +328,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     const SizedBox(height: 12),
                     Text('Gross total weight: ${grossTotal.toStringAsFixed(2)} kg'),
                     if (_addedCylinders > 0) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -329,7 +341,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     const Divider(),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -351,15 +363,17 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: kSectionSpacing),
             Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _addedCylindersController,
                       keyboardType: TextInputType.number,
@@ -369,7 +383,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       ),
                       onChanged: (v) => setState(() => _addedCylinders = int.tryParse(v) ?? 0),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     TextFormField(
                       controller: _removedCylindersController,
                       keyboardType: TextInputType.number,
@@ -380,7 +394,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       onChanged: (v) => setState(() => _removedCylinders = int.tryParse(v) ?? 0),
                     ),
                     if (_countChanged) ...[
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
                         initialValue: _reason,
                         items: const [
@@ -396,7 +410,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                         onChanged: (v) => setState(() => _reason = v ?? 'Maintenance'),
                       ),
                       if (_reason == 'Other') ...[
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         TextFormField(
                           controller: _otherReasonController,
                           decoration: const InputDecoration(
@@ -410,7 +424,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: kSectionSpacing),
             SizedBox(
               width: double.infinity,
               child: FilledButton(

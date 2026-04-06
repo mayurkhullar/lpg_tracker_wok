@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-class MetricCard extends StatelessWidget {
-  const MetricCard({
+class StatCard extends StatelessWidget {
+  const StatCard({
     super.key,
     required this.title,
     required this.value,
     this.color,
     this.valueMaxLines = 2,
-    this.minHeight = 118,
     this.fitValue = false,
   });
 
@@ -15,7 +14,6 @@ class MetricCard extends StatelessWidget {
   final String value;
   final Color? color;
   final int valueMaxLines;
-  final double minHeight;
   final bool fitValue;
 
   @override
@@ -49,29 +47,53 @@ class MetricCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: minHeight),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                style: textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(height: 10),
-              valueWidget,
-            ],
-          ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 10),
+            Expanded(child: Align(alignment: Alignment.centerLeft, child: valueWidget)),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class MetricCard extends StatelessWidget {
+  const MetricCard({
+    super.key,
+    required this.title,
+    required this.value,
+    this.color,
+    this.valueMaxLines = 2,
+    this.fitValue = false,
+  });
+
+  final String title;
+  final String value;
+  final Color? color;
+  final int valueMaxLines;
+  final bool fitValue;
+
+  @override
+  Widget build(BuildContext context) {
+    return StatCard(
+      title: title,
+      value: value,
+      color: color,
+      valueMaxLines: valueMaxLines,
+      fitValue: fitValue,
     );
   }
 }

@@ -121,49 +121,49 @@ class DashboardScreen extends ConsumerWidget {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: kScreenPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ResponsiveMetricGrid(
+            ResponsiveGrid(
               children: [
-                MetricCard(
+                StatCard(
                   title: 'Gas Used Today',
                   value: _usageDisplay(entries, todayEntry),
                 ),
-                MetricCard(
+                StatCard(
                   title: 'Gas Remaining Today',
                   value: todayEntry == null
                       ? '—'
                       : '${todayEntry.gasRemaining.toStringAsFixed(2)} kg',
                 ),
-                MetricCard(
+                StatCard(
                   title: 'Gas Cost Today',
                   value: _currencyDisplay(todayGasCost),
                 ),
-                MetricCard(
+                StatCard(
                   title: 'Sales Today',
                   value: todayEntry == null
                       ? '—'
                       : '₹${todayEntry.sales.toStringAsFixed(2)}',
                 ),
-                MetricCard(
+                StatCard(
                   title: 'Monthly Total',
                   value: '${monthlyTotal.toStringAsFixed(2)} kg',
                 ),
-                MetricCard(
+                StatCard(
                   title: 'Monthly Gas Cost',
                   value: _currencyDisplay(monthHasCost ? monthlyGasCost : null),
                 ),
               ],
             ),
             if (insightBanner != null) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: kSectionSpacing),
               insightBanner,
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: kSectionSpacing),
             const SectionHeader('Recent Entries'),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             ...entries.take(3).map((entry) {
               final cost = _dailyGasCost(
                 entry: entry,
@@ -171,7 +171,7 @@ class DashboardScreen extends ConsumerWidget {
                 purchaseRepository: purchaseRepository,
               );
               return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.only(bottom: 12),
                 child: Card(
                   margin: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
