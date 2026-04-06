@@ -5,42 +5,71 @@ class MetricCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.value,
-    this.color = Colors.blue,
-    this.valueMaxLines = 3,
+    this.color,
+    this.valueMaxLines = 2,
+    this.minHeight = 118,
+    this.fitValue = false,
   });
 
   final String title;
   final String value;
-  final Color color;
+  final Color? color;
   final int valueMaxLines;
+  final double minHeight;
+  final bool fitValue;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final valueStyle = textTheme.titleLarge?.copyWith(
+      color: color ?? Theme.of(context).colorScheme.onSurface,
+      fontWeight: FontWeight.w700,
+      height: 1.15,
+    );
+
+    Widget valueWidget = Text(
+      value,
+      maxLines: valueMaxLines,
+      overflow: TextOverflow.ellipsis,
+      style: valueStyle,
+    );
+
+    if (fitValue) {
+      valueWidget = FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Text(
+          value,
+          maxLines: 1,
+          style: valueStyle,
+        ),
+      );
+    }
+
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(color: color, fontWeight: FontWeight.w700),
-              maxLines: valueMaxLines,
-              softWrap: true,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: minHeight),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              valueWidget,
+            ],
+          ),
         ),
       ),
     );

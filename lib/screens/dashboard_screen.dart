@@ -5,18 +5,13 @@ import 'package:intl/intl.dart';
 import '../models/daily_entry.dart';
 import '../models/purchase.dart';
 import '../providers/app_providers.dart';
-import '../utils/date_utils.dart';
-import '../widgets/metric_card.dart';
 import '../services/purchase_repository.dart';
+import '../utils/date_utils.dart';
+import '../widgets/dashboard_layout.dart';
+import '../widgets/metric_card.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
-
-  int _metricColumns(double width) {
-    if (width < 380) return 1;
-    if (width <= 700) return 2;
-    return 3;
-  }
 
   bool _hasPreviousEntry(List<DailyEntry> entries, DateTime date) {
     final target = normalizeDate(date);
@@ -45,7 +40,10 @@ class DashboardScreen extends ConsumerWidget {
     required PurchaseRepository purchaseRepository,
   }) {
     if (entry == null) return null;
-    final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(entry.date, purchases);
+    final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(
+      entry.date,
+      purchases,
+    );
     if (costPerCylinder == null) return null;
     final costPerKg = costPerCylinder / gasPerCylinder;
     return entry.usage * costPerKg;
@@ -59,11 +57,7 @@ class DashboardScreen extends ConsumerWidget {
     final today = normalizeDate(DateTime.now());
 
     final todayMatches = entries.where((e) => normalizeDate(e.date) == today).toList();
-    final yesterdayMatches = entries
-        .where((e) => normalizeDate(e.date) == today.subtract(const Duration(days: 1)))
-        .toList();
     final todayEntry = todayMatches.isEmpty ? null : todayMatches.first;
-    final yesterdayEntry = yesterdayMatches.isEmpty ? null : yesterdayMatches.first;
 
     final monthEntries = entries
         .where((e) => e.date.year == today.year && e.date.month == today.month)
@@ -75,6 +69,7 @@ class DashboardScreen extends ConsumerWidget {
       purchases: purchases,
       purchaseRepository: purchaseRepository,
     );
+
     var monthHasCost = false;
     final monthlyGasCost = monthEntries.fold<double>(0, (sum, entry) {
       final dailyCost = _dailyGasCost(
@@ -90,149 +85,149 @@ class DashboardScreen extends ConsumerWidget {
     final monthAverage = monthEntries.isEmpty ? null : monthlyTotal / monthEntries.length;
     final todayUsage = todayEntry?.usage;
 
+    InsightBanner? insightBanner;
+    if ((todayEntry?.isAnomaly ?? false) || (entries.isNotEmpty && entries.first.isAnomaly)) {
+      insightBanner = InsightBanner(
+        message: 'Anomaly detected in usage trend. Please verify readings.',
+        icon: Icons.warning_amber_rounded,
+        textColor: Colors.orange.shade900,
+        backgroundColor: Colors.orange.withValues(alpha: 0.15),
+      );
+    } else if (monthAverage != null && todayUsage != null && monthAverage > 0) {
+      if (todayUsage > monthAverage) {
+        insightBanner = InsightBanner(
+          message: 'Higher than usual usage today.',
+          icon: Icons.trending_up,
+          textColor: Colors.orange.shade900,
+          backgroundColor: Colors.orange.withValues(alpha: 0.08),
+        );
+      } else if (todayUsage < monthAverage) {
+        insightBanner = InsightBanner(
+          message: 'Lower than average usage today.',
+          icon: Icons.trending_down,
+          textColor: Colors.green.shade900,
+          backgroundColor: Colors.green.withValues(alpha: 0.10),
+        );
+      } else {
+        insightBanner = InsightBanner(
+          message:
+              'Today usage is in line with monthly average (${_usageOnlyDisplay(monthAverage)}).',
+          icon: Icons.analytics_outlined,
+          textColor: Colors.blue.shade900,
+          backgroundColor: Colors.blue.withValues(alpha: 0.08),
+        );
+      }
+    }
+
     return SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = _metricColumns(constraints.maxWidth);
-          final spacing = 8.0;
-          final cardWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ResponsiveMetricGrid(
               children: [
-                if ((todayEntry?.isAnomaly ?? false) || (entries.isNotEmpty && entries.first.isAnomaly))
-                  Card(
-                    color: Colors.orange.withValues(alpha: 0.2),
-                    child: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text(
-                        'Anomaly detected in usage trend. Please verify readings.',
-                        style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Gas Used Today',
-                        value: _usageDisplay(entries, todayEntry),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Sales Today',
-                        value: todayEntry == null ? '—' : '₹${todayEntry.sales.toStringAsFixed(2)}',
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Yesterday Usage',
-                        value: _usageDisplay(entries, yesterdayEntry),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Gas Cost Today',
-                        value: _currencyDisplay(todayGasCost),
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Gas Remaining Today',
-                        value: todayEntry == null ? '—' : '${todayEntry.gasRemaining.toStringAsFixed(2)} kg',
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Monthly Total',
-                        value: '${monthlyTotal.toStringAsFixed(2)} kg',
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Monthly Gas Cost',
-                        value: _currencyDisplay(monthHasCost ? monthlyGasCost : null),
-                      ),
-                    ),
-                  ],
+                MetricCard(
+                  title: 'Gas Used Today',
+                  value: _usageDisplay(entries, todayEntry),
                 ),
-                if (monthAverage != null && todayUsage != null && monthAverage > 0) ...[
-                  const SizedBox(height: 12),
-                  if (todayUsage > monthAverage)
-                    Card(
-                      color: Colors.orange.withValues(alpha: 0.08),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        child: Text(
-                          '⚠ Higher than usual usage today',
-                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange),
-                        ),
-                      ),
-                    )
-                  else if (todayUsage < monthAverage)
-                    Card(
-                      color: Colors.green.withValues(alpha: 0.08),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        child: Text(
-                          '✓ Lower than average usage today',
-                          style: TextStyle(fontWeight: FontWeight.w600, color: Colors.green),
-                        ),
-                      ),
-                    )
-                  else
-                    Card(
-                      color: Colors.blue.withValues(alpha: 0.06),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        child: Text(
-                          'Today usage is in line with monthly average (${_usageOnlyDisplay(monthAverage)}).',
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ),
-                ],
-                const SizedBox(height: 16),
-                Text('Recent Entries', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                ...entries.take(3).map((entry) {
-                  final cost = _dailyGasCost(
-                    entry: entry,
-                    purchases: purchases,
-                    purchaseRepository: purchaseRepository,
-                  );
-                  return Card(
-                    child: ListTile(
-                      title: Text(DateFormat.yMMMd().format(entry.date)),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'Gas Used: ${_usageDisplay(entries, entry)}\n'
-                          'Cost: ${_currencyDisplay(cost)} • Sales: ₹${entry.sales.toStringAsFixed(2)}',
-                        ),
-                      ),
-                      isThreeLine: true,
-                      trailing: entry.isAnomaly
-                          ? const Icon(Icons.warning_amber_rounded, color: Colors.orange)
-                          : const Icon(Icons.check_circle, color: Colors.blue),
-                    ),
-                  );
-                }),
+                MetricCard(
+                  title: 'Gas Remaining Today',
+                  value: todayEntry == null
+                      ? '—'
+                      : '${todayEntry.gasRemaining.toStringAsFixed(2)} kg',
+                ),
+                MetricCard(
+                  title: 'Gas Cost Today',
+                  value: _currencyDisplay(todayGasCost),
+                ),
+                MetricCard(
+                  title: 'Sales Today',
+                  value: todayEntry == null
+                      ? '—'
+                      : '₹${todayEntry.sales.toStringAsFixed(2)}',
+                ),
+                MetricCard(
+                  title: 'Monthly Total',
+                  value: '${monthlyTotal.toStringAsFixed(2)} kg',
+                ),
+                MetricCard(
+                  title: 'Monthly Gas Cost',
+                  value: _currencyDisplay(monthHasCost ? monthlyGasCost : null),
+                ),
               ],
             ),
-          );
-        },
+            if (insightBanner != null) ...[
+              const SizedBox(height: 24),
+              insightBanner,
+            ],
+            const SizedBox(height: 24),
+            const SectionHeader('Recent Entries'),
+            const SizedBox(height: 16),
+            ...entries.take(3).map((entry) {
+              final cost = _dailyGasCost(
+                entry: entry,
+                purchases: purchases,
+                purchaseRepository: purchaseRepository,
+              );
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                DateFormat.yMMMd().format(entry.date),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Gas Used: ${_usageDisplay(entries, entry)}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Cost: ${_currencyDisplay(cost)} • Sales: ₹${entry.sales.toStringAsFixed(2)}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          entry.isAnomaly
+                              ? Icons.warning_amber_rounded
+                              : Icons.check_circle,
+                          color: entry.isAnomaly ? Colors.orange : Colors.blue,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

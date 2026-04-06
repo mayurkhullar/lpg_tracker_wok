@@ -4,16 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/app_providers.dart';
 import '../services/purchase_repository.dart';
+import '../widgets/dashboard_layout.dart';
 import '../widgets/metric_card.dart';
 
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
-
-  int _metricColumns(double width) {
-    if (width < 380) return 1;
-    if (width <= 700) return 2;
-    return 3;
-  }
 
   String _currencyDisplay(double? value) {
     if (value == null) return '—';
@@ -51,104 +46,86 @@ class AnalyticsScreen extends ConsumerWidget {
       return sum + (entry.usage * costPerKg);
     });
     final averageCostPerDay = daysWithCost == 0 ? null : monthlyGasCost / daysWithCost;
-    final costToSalesRatio = salesTotal == 0 ? null : monthlyGasCost / salesTotal;
 
     return SafeArea(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final columns = _metricColumns(constraints.maxWidth);
-          final spacing = 8.0;
-          final cardWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Daily Usage', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 260,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: BarChart(
-                        BarChartData(
-                          barGroups: [
-                            for (int i = 0; i < entries.length; i++)
-                              BarChartGroupData(
-                                x: i,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: entries[i].usage,
-                                    width: 12,
-                                    color: entries[i].isAnomaly ? Colors.orange : Colors.blue,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader('Daily Usage'),
+            const SizedBox(height: 16),
+            Card(
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: SizedBox(
+                width: double.infinity,
+                height: 240,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+                  child: BarChart(
+                    BarChartData(
+                      barGroups: [
+                        for (int i = 0; i < entries.length; i++)
+                          BarChartGroupData(
+                            x: i,
+                            barRods: [
+                              BarChartRodData(
+                                toY: entries[i].usage,
+                                width: 12,
+                                color: entries[i].isAnomaly ? Colors.orange : Colors.blue,
+                                borderRadius: BorderRadius.circular(4),
                               ),
-                          ],
-                          titlesData: const FlTitlesData(show: false),
-                          gridData: const FlGridData(show: false),
-                          borderData: FlBorderData(show: false),
-                        ),
-                      ),
+                            ],
+                          ),
+                      ],
+                      titlesData: const FlTitlesData(show: false),
+                      gridData: const FlGridData(show: false),
+                      borderData: FlBorderData(show: false),
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(title: 'Monthly Total', value: '${total.toStringAsFixed(2)} kg'),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(title: 'Monthly Avg', value: '${avg.toStringAsFixed(2)} kg'),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(title: 'Highest Day', value: '${highest.toStringAsFixed(2)} kg'),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Sales per kg',
-                        value: salesPerKgDisplay,
-                        valueMaxLines: 2,
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Monthly Gas Cost',
-                        value: _currencyDisplay(daysWithCost == 0 ? null : monthlyGasCost),
-                        valueMaxLines: 2,
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Avg Cost / Day',
-                        value: _currencyDisplay(averageCostPerDay),
-                        valueMaxLines: 2,
-                      ),
-                    ),
-                    SizedBox(
-                      width: cardWidth,
-                      child: MetricCard(
-                        title: 'Cost/Sales Ratio',
-                        value: costToSalesRatio == null ? '—' : costToSalesRatio.toStringAsFixed(2),
-                      ),
-                    ),
-                  ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const SectionHeader('Summary'),
+            const SizedBox(height: 16),
+            ResponsiveMetricGrid(
+              children: [
+                MetricCard(
+                  title: 'Monthly Total',
+                  value: '${total.toStringAsFixed(2)} kg',
+                  fitValue: true,
+                ),
+                MetricCard(
+                  title: 'Monthly Avg',
+                  value: '${avg.toStringAsFixed(2)} kg',
+                  fitValue: true,
+                ),
+                MetricCard(
+                  title: 'Highest Day',
+                  value: '${highest.toStringAsFixed(2)} kg',
+                  fitValue: true,
+                ),
+                MetricCard(
+                  title: 'Sales per kg',
+                  value: salesPerKgDisplay,
+                  fitValue: true,
+                ),
+                MetricCard(
+                  title: 'Monthly Gas Cost',
+                  value: _currencyDisplay(daysWithCost == 0 ? null : monthlyGasCost),
+                  fitValue: true,
+                ),
+                MetricCard(
+                  title: 'Avg Cost / Day',
+                  value: _currencyDisplay(averageCostPerDay),
+                  fitValue: true,
                 ),
               ],
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
