@@ -43,9 +43,10 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
           children: [
             Card(
               margin: EdgeInsets.zero,
+              elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Form(
                   key: _formKey,
                   child: Column(
@@ -135,18 +136,38 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Card(
                   margin: EdgeInsets.zero,
+                  elevation: 1,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     child: Column(
                       children: [
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2, right: 8),
+                              child: Icon(Icons.propane_tank_outlined, size: 20),
+                            ),
                             Expanded(
-                              child: Text(
-                                '${p.quantity} cylinders • ₹${p.costPerCylinder.toStringAsFixed(2)} each',
-                                style: Theme.of(context).textTheme.titleMedium,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${p.quantity} cylinders',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '₹${p.costPerCylinder.toStringAsFixed(2)} each',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -158,6 +179,8 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 10),
+                        const Divider(height: 1),
                         const SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerLeft,

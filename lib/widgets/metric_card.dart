@@ -8,6 +8,8 @@ class StatCard extends StatelessWidget {
     this.color,
     this.valueMaxLines = 2,
     this.fitValue = false,
+    this.isPrimary = false,
+    this.elevation = 1,
   });
 
   final String title;
@@ -15,11 +17,14 @@ class StatCard extends StatelessWidget {
   final Color? color;
   final int valueMaxLines;
   final bool fitValue;
+  final bool isPrimary;
+  final double elevation;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final valueStyle = textTheme.titleLarge?.copyWith(
+      fontSize: isPrimary ? 24 : 20,
       color: color ?? Theme.of(context).colorScheme.onSurface,
       fontWeight: FontWeight.w700,
       height: 1.15,
@@ -46,15 +51,17 @@ class StatCard extends StatelessWidget {
 
     return Card(
       margin: EdgeInsets.zero,
+      elevation: elevation,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               title,
               style: textTheme.bodySmall?.copyWith(
+                fontSize: 14,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
               ),
@@ -78,6 +85,8 @@ class MetricCard extends StatelessWidget {
     this.color,
     this.valueMaxLines = 2,
     this.fitValue = false,
+    this.isPrimary = false,
+    this.elevation = 1,
   });
 
   final String title;
@@ -85,6 +94,8 @@ class MetricCard extends StatelessWidget {
   final Color? color;
   final int valueMaxLines;
   final bool fitValue;
+  final bool isPrimary;
+  final double elevation;
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +105,8 @@ class MetricCard extends StatelessWidget {
       color: color,
       valueMaxLines: valueMaxLines,
       fitValue: fitValue,
+      isPrimary: isPrimary,
+      elevation: elevation,
     );
   }
 }

@@ -170,11 +170,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+            const SectionHeader('Basic Info'),
+            const SizedBox(height: 10),
             Card(
               margin: EdgeInsets.zero,
+              elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -184,7 +187,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       const LinearProgressIndicator(minHeight: 2),
                     ],
                     const SizedBox(height: 12),
-                    Text('Date', style: Theme.of(context).textTheme.titleMedium),
+                    Text('Date', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       onPressed: () async {
@@ -209,7 +212,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        Text('Connected Cylinders', style: Theme.of(context).textTheme.titleMedium),
+                        Text('Connected Cylinders', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
                         IconButton(
                           onPressed: _connectedCount > 1
                               ? () {
@@ -238,13 +241,16 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               ),
             ),
             const SizedBox(height: kSectionSpacing),
+            const SectionHeader('Weights'),
+            const SizedBox(height: 10),
             AnimatedSize(
               duration: const Duration(milliseconds: 250),
               child: Card(
                 margin: EdgeInsets.zero,
+                elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -294,11 +300,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               ),
             ),
             const SizedBox(height: kSectionSpacing),
+            const SectionHeader('Results (Read-only)'),
+            const SizedBox(height: 10),
             Card(
               margin: EdgeInsets.zero,
+              elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -311,10 +320,11 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 12),
-                    const Divider(),
-                    const SizedBox(height: 12),
                     Text(
                       'Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '—'} kg',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
                     ),
                     const SizedBox(height: 8),
                     Text('Estimated Usage Today', style: _labelStyle(context)),
@@ -324,9 +334,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       style: _valueStyle(context),
                     ),
                     const SizedBox(height: 12),
-                    const Divider(),
-                    const SizedBox(height: 12),
-                    Text('Gross total weight: ${grossTotal.toStringAsFixed(2)} kg'),
+                    Text(
+                      'Gross total weight: ${grossTotal.toStringAsFixed(2)} kg',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
                     if (_addedCylinders > 0) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -341,9 +354,21 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 12),
-                    const Divider(),
-                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: kSectionSpacing),
+            const SectionHeader('Sales'),
+            const SizedBox(height: 10),
+            Card(
+              margin: EdgeInsets.zero,
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
                     TextFormField(
                       controller: _salesController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -364,11 +389,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               ),
             ),
             const SizedBox(height: kSectionSpacing),
+            const SectionHeader('Adjustments'),
+            const SizedBox(height: 10),
             Card(
               margin: EdgeInsets.zero,
+              elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

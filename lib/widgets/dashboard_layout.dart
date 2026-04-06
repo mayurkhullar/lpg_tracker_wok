@@ -8,7 +8,7 @@ class ResponsiveGrid extends StatelessWidget {
   const ResponsiveGrid({
     super.key,
     required this.children,
-    this.childAspectRatio = 1.4,
+    this.childAspectRatio = 1.6,
   });
 
   final List<Widget> children;
@@ -16,7 +16,8 @@ class ResponsiveGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.of(context).size.width > 600;
+    final width = MediaQuery.of(context).size.width;
+    final isTablet = width > 600;
 
     return GridView.count(
       crossAxisCount: isTablet ? 3 : 2,
@@ -39,8 +40,9 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w700,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
     );
   }

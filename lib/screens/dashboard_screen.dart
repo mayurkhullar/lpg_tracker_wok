@@ -34,6 +34,77 @@ class DashboardScreen extends ConsumerWidget {
     return '${value.toStringAsFixed(2)} kg';
   }
 
+  Color _getUsageColor({
+    required BuildContext context,
+    required double? usage,
+    required double? average,
+  }) {
+    if (usage == null || average == null || average <= 0) {
+      return Theme.of(context).colorScheme.onSurface;
+    }
+    if (usage > average * 1.3) return Colors.orange.shade700;
+    if (usage < average * 0.7) return Colors.green.shade700;
+    return Theme.of(context).colorScheme.onSurface;
+  }
+
+  List<InsightBanner> _buildMicroInsights({
+    required BuildContext context,
+    required DailyEntry? todayEntry,
+    required DailyEntry? yesterdayEntry,
+    required double? monthAverage,
+    required List<DailyEntry> monthEntries,
+  }) {
+    final insights = <InsightBanner>[];
+    final todayUsage = todayEntry?.usage;
+    final yesterdayUsage = yesterdayEntry?.usage;
+
+    if (todayUsage != null && yesterdayUsage != null && yesterdayUsage > 0) {
+      final percentChange = ((todayUsage - yesterdayUsage) / yesterdayUsage) * 100;
+      final trendUp = percentChange >= 0;
+      insights.add(
+        InsightBanner(
+          message:
+              'Usage ${trendUp ? 'increased' : 'decreased'} ${percentChange.abs().toStringAsFixed(0)}% vs yesterday.',
+          icon: trendUp ? Icons.trending_up : Icons.trending_down,
+          textColor: trendUp ? Colors.orange.shade900 : Colors.green.shade900,
+          backgroundColor: trendUp
+              ? Colors.orange.withValues(alpha: 0.08)
+              : Colors.green.withValues(alpha: 0.10),
+        ),
+      );
+    }
+
+    if (monthAverage != null && todayUsage != null && monthAverage > 0) {
+      final faster = todayUsage > monthAverage;
+      insights.add(
+        InsightBanner(
+          message: faster
+              ? 'You are consuming faster than average.'
+              : 'Today usage is below your monthly average.',
+          icon: faster ? Icons.speed : Icons.bolt,
+          textColor: faster ? Colors.orange.shade900 : Colors.green.shade900,
+          backgroundColor: faster
+              ? Colors.orange.withValues(alpha: 0.08)
+              : Colors.green.withValues(alpha: 0.10),
+        ),
+      );
+    }
+
+    if (todayEntry != null && monthEntries.isNotEmpty && monthAverage != null && monthAverage > 0) {
+      final daysRemaining = todayEntry.gasRemaining / monthAverage;
+      insights.add(
+        InsightBanner(
+          message: 'Estimated days remaining: ${daysRemaining.clamp(0, 999).toStringAsFixed(0)} days.',
+          icon: Icons.event_available_outlined,
+          textColor: Colors.blue.shade900,
+          backgroundColor: Colors.blue.withValues(alpha: 0.08),
+        ),
+      );
+    }
+
+    return insights;
+  }
+
   double? _dailyGasCost({
     required DailyEntry? entry,
     required List<Purchase> purchases,
@@ -58,6 +129,10 @@ class DashboardScreen extends ConsumerWidget {
 
     final todayMatches = entries.where((e) => normalizeDate(e.date) == today).toList();
     final todayEntry = todayMatches.isEmpty ? null : todayMatches.first;
+    final yesterdayMatches = entries
+        .where((e) => normalizeDate(e.date) == today.subtract(const Duration(days: 1)))
+        .toList();
+    final yesterdayEntry = yesterdayMatches.isEmpty ? null : yesterdayMatches.first;
 
     final monthEntries = entries
         .where((e) => e.date.year == today.year && e.date.month == today.month)
@@ -84,6 +159,11 @@ class DashboardScreen extends ConsumerWidget {
 
     final monthAverage = monthEntries.isEmpty ? null : monthlyTotal / monthEntries.length;
     final todayUsage = todayEntry?.usage;
+    final todayUsageColor = _getUsageColor(
+      context: context,
+      usage: todayUsage,
+      average: monthAverage,
+    );
 
     InsightBanner? insightBanner;
     if ((todayEntry?.isAnomaly ?? false) || (entries.isNotEmpty && entries.first.isAnomaly)) {
@@ -118,6 +198,13 @@ class DashboardScreen extends ConsumerWidget {
         );
       }
     }
+    final microInsights = _buildMicroInsights(
+      context: context,
+      todayEntry: todayEntry,
+      yesterdayEntry: yesterdayEntry,
+      monthAverage: monthAverage,
+      monthEntries: monthEntries,
+    );
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -125,14 +212,17 @@ class DashboardScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            StatCard(
+              title: 'Gas Used Today',
+              value: _usageDisplay(entries, todayEntry),
+              isPrimary: true,
+              color: todayUsageColor,
+            ),
+            const SizedBox(height: 12),
             ResponsiveGrid(
               children: [
                 StatCard(
-                  title: 'Gas Used Today',
-                  value: _usageDisplay(entries, todayEntry),
-                ),
-                StatCard(
-                  title: 'Gas Remaining Today',
+                  title: 'Gas Remaining',
                   value: todayEntry == null
                       ? '—'
                       : '${todayEntry.gasRemaining.toStringAsFixed(2)} kg',
@@ -160,6 +250,15 @@ class DashboardScreen extends ConsumerWidget {
             if (insightBanner != null) ...[
               const SizedBox(height: kSectionSpacing),
               insightBanner,
+            ],
+            if (microInsights.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ...microInsights.map(
+                (insight) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: insight,
+                ),
+              ),
             ],
             const SizedBox(height: kSectionSpacing),
             const SectionHeader('Recent Entries'),
@@ -196,7 +295,14 @@ class DashboardScreen extends ConsumerWidget {
                               const SizedBox(height: 6),
                               Text(
                                 'Gas Used: ${_usageDisplay(entries, entry)}',
-                                style: Theme.of(context).textTheme.bodyMedium,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: _getUsageColor(
+                                        context: context,
+                                        usage: entry.usage,
+                                        average: monthAverage,
+                                      ),
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
                               const SizedBox(height: 2),
                               Text(
