@@ -41,7 +41,7 @@ class SectionHeader extends StatelessWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontSize: 16,
+            fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
     );

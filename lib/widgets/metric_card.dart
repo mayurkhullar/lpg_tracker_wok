@@ -23,9 +23,10 @@ class StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
     final valueStyle = textTheme.titleLarge?.copyWith(
-      fontSize: isPrimary ? 24 : 20,
-      color: color ?? Theme.of(context).colorScheme.onSurface,
+      fontSize: isPrimary ? 26 : 22,
+      color: color ?? colorScheme.onSurface,
       fontWeight: FontWeight.w700,
       height: 1.15,
     );
@@ -53,25 +54,35 @@ class StatCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       elevation: elevation,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: textTheme.bodySmall?.copyWith(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w500,
+      surfaceTintColor: colorScheme.surfaceTint,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: textTheme.bodySmall?.copyWith(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-            Align(alignment: Alignment.topLeft, child: valueWidget),
-          ],
+              const SizedBox(height: 8),
+              Align(alignment: Alignment.topLeft, child: valueWidget),
+            ],
+          ),
         ),
       ),
     );

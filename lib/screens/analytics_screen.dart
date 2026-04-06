@@ -140,51 +140,63 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   Widget _buildFilterCard() {
     return Card(
       margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeader('Filter'),
-            const SizedBox(height: 16),
-            SegmentedButton<AnalyticsFilterMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: AnalyticsFilterMode.today, label: Text('Today')),
-                ButtonSegment(value: AnalyticsFilterMode.singleDate, label: Text('Single Date')),
-                ButtonSegment(value: AnalyticsFilterMode.dateRange, label: Text('Date Range')),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (selection) {
-                setState(() {
-                  _mode = selection.first;
-                  if (_mode == AnalyticsFilterMode.today) {
-                    final today = normalizeDate(DateTime.now());
-                    _singleDate = today;
-                    _rangeStart = today;
-                    _rangeEnd = today;
-                  }
-                  _rangeError = _validateRange(_rangeStart, _rangeEnd);
-                });
-              },
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SegmentedButton<AnalyticsFilterMode>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(value: AnalyticsFilterMode.today, label: Text('Today')),
+                  ButtonSegment(value: AnalyticsFilterMode.singleDate, label: Text('Single Date')),
+                  ButtonSegment(value: AnalyticsFilterMode.dateRange, label: Text('Date Range')),
+                ],
+                selected: {_mode},
+                onSelectionChanged: (selection) {
+                  setState(() {
+                    _mode = selection.first;
+                    if (_mode == AnalyticsFilterMode.today) {
+                      final today = normalizeDate(DateTime.now());
+                      _singleDate = today;
+                      _rangeStart = today;
+                      _rangeEnd = today;
+                    }
+                    _rangeError = _validateRange(_rangeStart, _rangeEnd);
+                  });
+                },
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
                 FilledButton.tonal(
                   onPressed: () => _setPresetRange(7),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   child: const Text('Last 7 Days'),
                 ),
                 FilledButton.tonal(
                   onPressed: () => _setPresetRange(30),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                   child: const Text('Last 30 Days'),
                 ),
               ],
             ),
             if (_mode == AnalyticsFilterMode.singleDate) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               _buildDateButton(
                 label: 'Date',
                 value: _singleDate,
@@ -192,7 +204,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               ),
             ],
             if (_mode == AnalyticsFilterMode.dateRange) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
@@ -319,6 +331,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final totalGasCostValue = hasCost ? totalGasCost : null;
     final salesPerKg =
         (totalSales == null || totalUsage == null || totalUsage <= 0) ? null : totalSales / totalUsage;
+    final accentColor = Theme.of(context).colorScheme.primary;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -327,7 +340,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildFilterCard(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             if (filteredEntries.isEmpty || hasRangeError)
               const InsightBanner(
                 message: 'No data available for selected period',
@@ -337,35 +350,52 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               )
             else if (treatAsSingle) ...[
               const SectionHeader('Single Date Summary'),
+              const SizedBox(height: 16),
+              StatCard(
+                title: 'Gas Used',
+                value: _usageDisplay(singleGasUsed),
+                fitValue: true,
+                isPrimary: true,
+                color: accentColor,
+              ),
               const SizedBox(height: 12),
-              ResponsiveGrid(
-                childAspectRatio: 1.28,
-                children: [
-                  StatCard(title: 'Gas Used', value: _usageDisplay(singleGasUsed), fitValue: true),
-                  StatCard(
-                    title: 'Gas Remaining',
-                    value: _usageDisplay(singleGasRemaining),
-                    fitValue: true,
-                  ),
-                  StatCard(title: 'Gas Cost', value: _currencyDisplay(singleGasCost), fitValue: true),
-                  StatCard(title: 'Sales', value: _currencyDisplay(singleSales), fitValue: true),
-                  StatCard(
-                    title: 'Cylinder Count',
-                    value: _countDisplay(singleCylinderCount),
-                    fitValue: true,
-                  ),
-                  StatCard(
-                    title: 'Added / Removed Cylinders',
-                    value: singleAddedRemoved ?? '—',
-                    fitValue: true,
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compactLayout = constraints.maxWidth < 380;
+                  return GridView.count(
+                    crossAxisCount: compactLayout ? 1 : 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: compactLayout ? 2.9 : 1.32,
+                    children: [
+                      StatCard(
+                        title: 'Gas Remaining',
+                        value: _usageDisplay(singleGasRemaining),
+                        fitValue: true,
+                      ),
+                      StatCard(title: 'Gas Cost', value: _currencyDisplay(singleGasCost), fitValue: true),
+                      StatCard(title: 'Sales', value: _currencyDisplay(singleSales), fitValue: true),
+                      StatCard(
+                        title: 'Cylinder Count',
+                        value: _countDisplay(singleCylinderCount),
+                        fitValue: true,
+                      ),
+                      StatCard(
+                        title: 'Added / Removed Cylinders',
+                        value: singleAddedRemoved ?? '—',
+                        fitValue: true,
+                      ),
+                    ],
+                  );
+                },
               ),
             ] else ...[
               const SectionHeader('Range Summary'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               ResponsiveGrid(
-                childAspectRatio: 1.28,
+                childAspectRatio: 1.32,
                 children: [
                   StatCard(title: 'Total Gas Used', value: _usageDisplay(totalUsage), fitValue: true),
                   StatCard(
