@@ -84,7 +84,7 @@ class AnalyticsScreen extends ConsumerWidget {
                             BarChartData(
                               alignment: BarChartAlignment.spaceEvenly,
                               minY: 0,
-                              maxY: maxY,
+                              maxY: maxY.toDouble(),
                               groupsSpace: 12,
                               barTouchData: BarTouchData(
                                 enabled: true,
