@@ -10,8 +10,32 @@ import '../utils/date_utils.dart';
 import '../widgets/dashboard_layout.dart';
 import '../widgets/metric_card.dart';
 
-class AnalyticsScreen extends ConsumerWidget {
+enum AnalyticsFilterMode { today, singleDate, dateRange }
+
+class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
+
+  @override
+  ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
+  static const int _maxRangeDays = 180;
+
+  late DateTime _singleDate;
+  late DateTime _rangeStart;
+  late DateTime _rangeEnd;
+  AnalyticsFilterMode _mode = AnalyticsFilterMode.today;
+  String? _rangeError;
+
+  @override
+  void initState() {
+    super.initState();
+    final today = normalizeDate(DateTime.now());
+    _singleDate = today;
+    _rangeStart = today;
+    _rangeEnd = today;
+  }
 
   bool _hasPreviousEntry(List<DailyEntry> entries, DateTime date) {
     final target = normalizeDate(date);
@@ -37,6 +61,171 @@ class AnalyticsScreen extends ConsumerWidget {
     return '${entry.usage.toStringAsFixed(2)} kg\n${DateFormat.MMMd().format(entry.date)}';
   }
 
+  String _countDisplay(int? value) {
+    if (value == null) return '—';
+    return value.toString();
+  }
+
+  Future<void> _pickSingleDate() async {
+    final today = normalizeDate(DateTime.now());
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _singleDate.isAfter(today) ? today : _singleDate,
+      firstDate: DateTime(2020),
+      lastDate: today,
+    );
+    if (selected == null) return;
+    setState(() {
+      _singleDate = normalizeDate(selected);
+      _mode = AnalyticsFilterMode.singleDate;
+    });
+  }
+
+  Future<void> _pickRangeDate({required bool isStart}) async {
+    final today = normalizeDate(DateTime.now());
+    final initial = isStart ? _rangeStart : _rangeEnd;
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: initial.isAfter(today) ? today : initial,
+      firstDate: DateTime(2020),
+      lastDate: today,
+    );
+    if (selected == null) return;
+    final normalized = normalizeDate(selected);
+    setState(() {
+      if (isStart) {
+        _rangeStart = normalized;
+      } else {
+        _rangeEnd = normalized;
+      }
+      _mode = AnalyticsFilterMode.dateRange;
+      _rangeError = _validateRange(_rangeStart, _rangeEnd);
+    });
+  }
+
+  String? _validateRange(DateTime start, DateTime end) {
+    final today = normalizeDate(DateTime.now());
+    if (end.isBefore(start)) return 'End date must be on or after start date.';
+    if (start.isAfter(today) || end.isAfter(today)) return 'Future dates are not allowed.';
+    final span = end.difference(start).inDays + 1;
+    if (span > _maxRangeDays) return 'Date range cannot exceed $_maxRangeDays days.';
+    return null;
+  }
+
+  void _setPresetRange(int days) {
+    final today = normalizeDate(DateTime.now());
+    setState(() {
+      _mode = AnalyticsFilterMode.dateRange;
+      _rangeEnd = today;
+      _rangeStart = normalizeDate(today.subtract(Duration(days: days - 1)));
+      _rangeError = _validateRange(_rangeStart, _rangeEnd);
+    });
+  }
+
+  Widget _buildDateButton({
+    required String label,
+    required DateTime value,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.calendar_today, size: 18),
+      label: Text('$label: ${DateFormat.yMMMd().format(value)}'),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+    );
+  }
+
+  Widget _buildFilterCard() {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader('Filter'),
+            const SizedBox(height: 16),
+            SegmentedButton<AnalyticsFilterMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: AnalyticsFilterMode.today, label: Text('Today')),
+                ButtonSegment(value: AnalyticsFilterMode.singleDate, label: Text('Single Date')),
+                ButtonSegment(value: AnalyticsFilterMode.dateRange, label: Text('Date Range')),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (selection) {
+                setState(() {
+                  _mode = selection.first;
+                  if (_mode == AnalyticsFilterMode.today) {
+                    final today = normalizeDate(DateTime.now());
+                    _singleDate = today;
+                    _rangeStart = today;
+                    _rangeEnd = today;
+                  }
+                  _rangeError = _validateRange(_rangeStart, _rangeEnd);
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                FilledButton.tonal(
+                  onPressed: () => _setPresetRange(7),
+                  child: const Text('Last 7 Days'),
+                ),
+                FilledButton.tonal(
+                  onPressed: () => _setPresetRange(30),
+                  child: const Text('Last 30 Days'),
+                ),
+              ],
+            ),
+            if (_mode == AnalyticsFilterMode.singleDate) ...[
+              const SizedBox(height: 16),
+              _buildDateButton(
+                label: 'Date',
+                value: _singleDate,
+                onTap: _pickSingleDate,
+              ),
+            ],
+            if (_mode == AnalyticsFilterMode.dateRange) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _buildDateButton(
+                    label: 'Start',
+                    value: _rangeStart,
+                    onTap: () => _pickRangeDate(isStart: true),
+                  ),
+                  _buildDateButton(
+                    label: 'End',
+                    value: _rangeEnd,
+                    onTap: () => _pickRangeDate(isStart: false),
+                  ),
+                ],
+              ),
+              if (_rangeError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _rangeError!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   double? _dailyGasCost({
     required DailyEntry entry,
     required List<Purchase> purchases,
@@ -52,7 +241,7 @@ class AnalyticsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final allEntries = ref.watch(dailyEntriesProvider).value ?? [];
     if (allEntries.isEmpty) {
       return const Center(child: Text('No analytics yet. Add entries first.'));
@@ -62,95 +251,74 @@ class AnalyticsScreen extends ConsumerWidget {
     final purchaseRepository = ref.watch(purchaseRepositoryProvider);
 
     final sortedEntries = [...allEntries]..sort((a, b) => a.date.compareTo(b.date));
+    final today = normalizeDate(DateTime.now());
+    final selectedDay = _mode == AnalyticsFilterMode.today ? today : _singleDate;
+    final isRangeMode = _mode == AnalyticsFilterMode.dateRange;
+    final hasRangeError = isRangeMode && _rangeError != null;
 
-    final lastDate = normalizeDate(sortedEntries.last.date);
-    final windowStart = lastDate.subtract(const Duration(days: 6));
-    final usageByDate = <DateTime, DailyEntry>{};
-    for (final entry in sortedEntries) {
-      usageByDate[normalizeDate(entry.date)] = entry;
+    final filteredEntries = sortedEntries.where((entry) {
+      final date = normalizeDate(entry.date);
+      if (!isRangeMode) return date == selectedDay;
+      if (hasRangeError) return false;
+      return !date.isBefore(_rangeStart) && !date.isAfter(_rangeEnd);
+    }).toList();
+
+    final treatAsSingle = !isRangeMode || _rangeStart == _rangeEnd;
+    final validFilteredEntries = filteredEntries.where((entry) => _isValidUsageEntry(sortedEntries, entry)).toList();
+
+    DailyEntry? singleEntry;
+    if (treatAsSingle) {
+      singleEntry = filteredEntries.isNotEmpty ? filteredEntries.last : null;
     }
 
-    final recentDates = List.generate(
-      7,
-      (index) => normalizeDate(windowStart.add(Duration(days: index))),
-    );
-    final recentEntries = recentDates.map((date) => usageByDate[date]).whereType<DailyEntry>().toList();
-
-    final validRecentEntries = recentEntries
-        .where((entry) => _isValidUsageEntry(sortedEntries, entry))
-        .toList();
-
-    final totalUsage7Day = validRecentEntries.isEmpty
+    final singleGasUsed = singleEntry != null && _isValidUsageEntry(sortedEntries, singleEntry)
+        ? singleEntry.usage
+        : null;
+    final singleGasRemaining = singleEntry?.gasRemaining;
+    final singleGasCost = singleEntry == null
         ? null
-        : validRecentEntries.fold<double>(0, (sum, entry) => sum + entry.usage);
-    final averageUsage7Day = validRecentEntries.isEmpty ? null : totalUsage7Day! / validRecentEntries.length;
-
-    final highestUsageEntry7Day = validRecentEntries.isEmpty
-        ? null
-        : validRecentEntries.reduce(
-            (current, next) => next.usage > current.usage ? next : current,
+        : _dailyGasCost(
+            entry: singleEntry,
+            purchases: purchases,
+            purchaseRepository: purchaseRepository,
           );
-    final lowestUsageEntry7Day = validRecentEntries.isEmpty
+    final singleSales = singleEntry?.sales;
+    final singleCylinderCount = singleEntry?.connectedCount;
+    final singleAddedRemoved = singleEntry == null
         ? null
-        : validRecentEntries.reduce(
-            (current, next) => next.usage < current.usage ? next : current,
-          );
+        : '+${singleEntry.addedCylinders} / -${singleEntry.removedCylinders}';
 
-    final monthTargetDate = lastDate;
-    final monthEntries = sortedEntries
-        .where((entry) =>
-            entry.date.year == monthTargetDate.year && entry.date.month == monthTargetDate.month)
-        .toList();
-
-    final validMonthEntries = monthEntries
-        .where((entry) => _isValidUsageEntry(sortedEntries, entry))
-        .toList();
-
-    final monthlyTotal = validMonthEntries.isEmpty
+    final totalUsage = validFilteredEntries.isEmpty
         ? null
-        : validMonthEntries.fold<double>(0, (sum, entry) => sum + entry.usage);
-    final monthlyAverage =
-        validMonthEntries.isEmpty ? null : monthlyTotal! / validMonthEntries.length;
-
-    final highestMonthEntry = validMonthEntries.isEmpty
+        : validFilteredEntries.fold<double>(0, (sum, entry) => sum + entry.usage);
+    final averageUsage =
+        validFilteredEntries.isEmpty ? null : totalUsage! / validFilteredEntries.length;
+    final highestUsageEntry = validFilteredEntries.isEmpty
         ? null
-        : validMonthEntries.reduce(
-            (current, next) => next.usage > current.usage ? next : current,
-          );
-
-    final monthlySales = validMonthEntries.isEmpty
+        : validFilteredEntries.reduce((current, next) => next.usage > current.usage ? next : current);
+    final lowestUsageEntry = validFilteredEntries.isEmpty
         ? null
-        : validMonthEntries.fold<double>(0, (sum, entry) => sum + entry.sales);
-    final salesPerKg = (monthlySales == null || monthlyTotal == null || monthlyTotal <= 0)
-        ? null
-        : monthlySales / monthlyTotal;
+        : validFilteredEntries.reduce((current, next) => next.usage < current.usage ? next : current);
 
-    var monthHasCost = false;
-    var costDays = 0;
-    final monthlyGasCost = validMonthEntries.fold<double>(0, (sum, entry) {
+    final totalSales = validFilteredEntries.isEmpty
+        ? null
+        : validFilteredEntries.fold<double>(0, (sum, entry) => sum + entry.sales);
+
+    var hasCost = false;
+    final totalGasCost = validFilteredEntries.fold<double>(0, (sum, entry) {
       final dailyCost = _dailyGasCost(
         entry: entry,
         purchases: purchases,
         purchaseRepository: purchaseRepository,
       );
       if (dailyCost == null) return sum;
-      monthHasCost = true;
-      costDays += 1;
+      hasCost = true;
       return sum + dailyCost;
     });
 
-    final monthlyGasCostValue = monthHasCost ? monthlyGasCost : null;
-    final averageCostPerDay =
-        monthHasCost && costDays > 0 ? monthlyGasCost / costDays : null;
-
-    final insightText = [
-      if (averageUsage7Day != null)
-        'Average usage this week: ${averageUsage7Day.toStringAsFixed(2)} kg/day',
-      if (highestUsageEntry7Day != null)
-        'Highest usage was on ${DateFormat.MMMd().format(highestUsageEntry7Day.date)}',
-      if (monthlyGasCostValue != null)
-        'Gas cost this month is ₹${monthlyGasCostValue.toStringAsFixed(2)}',
-    ].join(' • ');
+    final totalGasCostValue = hasCost ? totalGasCost : null;
+    final salesPerKg =
+        (totalSales == null || totalUsage == null || totalUsage <= 0) ? null : totalSales / totalUsage;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -158,80 +326,74 @@ class AnalyticsScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SectionHeader('Last 7 Days Summary'),
-            const SizedBox(height: 12),
-            ResponsiveGrid(
-              childAspectRatio: 1.35,
-              children: [
-                StatCard(
-                  title: 'Total Gas Used',
-                  value: _usageDisplay(totalUsage7Day),
-                  fitValue: true,
-                ),
-                StatCard(
-                  title: 'Average Daily Gas Used',
-                  value: _usageDisplay(averageUsage7Day),
-                  fitValue: true,
-                ),
-                StatCard(
-                  title: 'Highest Usage Day',
-                  value: _usageDayDisplay(highestUsageEntry7Day),
-                  valueMaxLines: 3,
-                ),
-                StatCard(
-                  title: 'Lowest Usage Day',
-                  value: _usageDayDisplay(lowestUsageEntry7Day),
-                  valueMaxLines: 3,
-                ),
-              ],
-            ),
-            if (insightText.isNotEmpty) ...[
+            _buildFilterCard(),
+            const SizedBox(height: 16),
+            if (filteredEntries.isEmpty || hasRangeError)
+              const InsightBanner(
+                message: 'No data available for selected period',
+                icon: Icons.info_outline,
+                textColor: Colors.black87,
+                backgroundColor: Color(0xFFF3F4F6),
+              )
+            else if (treatAsSingle) ...[
+              const SectionHeader('Single Date Summary'),
               const SizedBox(height: 12),
-              InsightBanner(
-                message: insightText,
-                icon: Icons.lightbulb_outline,
-                textColor: Colors.blue.shade900,
-                backgroundColor: Colors.blue.withValues(alpha: 0.08),
+              ResponsiveGrid(
+                childAspectRatio: 1.28,
+                children: [
+                  StatCard(title: 'Gas Used', value: _usageDisplay(singleGasUsed), fitValue: true),
+                  StatCard(
+                    title: 'Gas Remaining',
+                    value: _usageDisplay(singleGasRemaining),
+                    fitValue: true,
+                  ),
+                  StatCard(title: 'Gas Cost', value: _currencyDisplay(singleGasCost), fitValue: true),
+                  StatCard(title: 'Sales', value: _currencyDisplay(singleSales), fitValue: true),
+                  StatCard(
+                    title: 'Cylinder Count',
+                    value: _countDisplay(singleCylinderCount),
+                    fitValue: true,
+                  ),
+                  StatCard(
+                    title: 'Added / Removed Cylinders',
+                    value: singleAddedRemoved ?? '—',
+                    fitValue: true,
+                  ),
+                ],
+              ),
+            ] else ...[
+              const SectionHeader('Range Summary'),
+              const SizedBox(height: 12),
+              ResponsiveGrid(
+                childAspectRatio: 1.28,
+                children: [
+                  StatCard(title: 'Total Gas Used', value: _usageDisplay(totalUsage), fitValue: true),
+                  StatCard(
+                    title: 'Average Daily Usage',
+                    value: _usageDisplay(averageUsage),
+                    fitValue: true,
+                  ),
+                  StatCard(
+                    title: 'Highest Usage Day',
+                    value: _usageDayDisplay(highestUsageEntry),
+                    valueMaxLines: 3,
+                  ),
+                  StatCard(
+                    title: 'Lowest Usage Day',
+                    value: _usageDayDisplay(lowestUsageEntry),
+                    valueMaxLines: 3,
+                  ),
+                  StatCard(
+                    title: 'Total Gas Cost',
+                    value: _currencyDisplay(totalGasCostValue),
+                    fitValue: true,
+                  ),
+                  StatCard(title: 'Total Sales', value: _currencyDisplay(totalSales), fitValue: true),
+                  StatCard(title: 'Sales per kg', value: _currencyDisplay(salesPerKg), fitValue: true),
+                ],
               ),
             ],
             const SizedBox(height: kSectionSpacing),
-            const SectionHeader('Monthly Summary'),
-            const SizedBox(height: 12),
-            ResponsiveGrid(
-              childAspectRatio: 1.28,
-              children: [
-                StatCard(
-                  title: 'Monthly Total',
-                  value: _usageDisplay(monthlyTotal),
-                  fitValue: true,
-                ),
-                StatCard(
-                  title: 'Monthly Average',
-                  value: _usageDisplay(monthlyAverage),
-                  fitValue: true,
-                ),
-                StatCard(
-                  title: 'Highest Day',
-                  value: _usageDayDisplay(highestMonthEntry),
-                  valueMaxLines: 3,
-                ),
-                StatCard(
-                  title: 'Sales per kg',
-                  value: _currencyDisplay(salesPerKg),
-                  fitValue: true,
-                ),
-                StatCard(
-                  title: 'Monthly Gas Cost',
-                  value: _currencyDisplay(monthlyGasCostValue),
-                  fitValue: true,
-                ),
-                StatCard(
-                  title: 'Average Cost per Day',
-                  value: _currencyDisplay(averageCostPerDay),
-                  fitValue: true,
-                ),
-              ],
-            ),
           ],
         ),
       ),
