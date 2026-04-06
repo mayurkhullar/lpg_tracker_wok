@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/daily_entry.dart';
 import '../utils/date_utils.dart';
+import '../utils/gas_calculations.dart';
 import 'firestore_service.dart';
 
 class DailyEntryRepository {
@@ -61,15 +62,18 @@ class DailyEntryRepository {
     final todayId = dayId(targetDate);
 
     final previous = await getPrevious(targetDate);
-    final totalWeight = weights.fold<double>(0, (total, e) => total + e);
+    final grossTotalWeight = calculateGrossTotal(weights);
+    final gasRemaining = calculateGasRemaining(weights, connectedCount);
 
-    final adjustmentRefWeight =
-        weights.isEmpty ? 28.0 : (totalWeight / weights.length).clamp(19.1, 38.0);
-    final adjustedTodayComparable =
-        totalWeight - (addedCylinders * adjustmentRefWeight) + (removedCylinders * adjustmentRefWeight);
+    final adjustmentRefGas = weights.isEmpty
+        ? kMaxGasContentPerCylinderKg
+        : (gasRemaining / weights.length).clamp(0.0, kMaxGasContentPerCylinderKg);
+    final adjustedTodayComparableGas =
+        gasRemaining - (addedCylinders * adjustmentRefGas) + (removedCylinders * adjustmentRefGas);
 
     final daysDiff = previous == null ? 1 : targetDate.difference(normalizeDate(previous.date)).inDays;
-    final usageAcrossGap = previous == null ? 0.0 : math.max(0, previous.totalWeight - adjustedTodayComparable);
+    final usageAcrossGap =
+        previous == null ? 0.0 : calculateUsage(previous.gasRemaining, adjustedTodayComparableGas);
     final distributedUsage = daysDiff <= 0 ? 0.0 : usageAcrossGap / daysDiff;
 
     final newEntry = DailyEntry(
@@ -77,7 +81,9 @@ class DailyEntryRepository {
       date: targetDate,
       connectedCount: connectedCount,
       weights: weights,
-      totalWeight: totalWeight,
+      totalWeight: grossTotalWeight,
+      grossTotalWeight: grossTotalWeight,
+      gasRemaining: gasRemaining,
       usage: distributedUsage,
       sales: sales,
       addedCylinders: addedCylinders,
@@ -93,13 +99,16 @@ class DailyEntryRepository {
       for (var i = 1; i < daysDiff; i++) {
         final missedDate = normalizeDate(previous.date).add(Duration(days: i));
         final id = dayId(missedDate);
-        final estimatedTotal = previous.totalWeight - (distributedUsage * i);
+        final estimatedGas = clampGas(previous.gasRemaining - (distributedUsage * i));
+        final estimatedGross = estimatedGas + calculateTareWeight(previous.connectedCount);
         final missed = DailyEntry(
           id: id,
           date: missedDate,
           connectedCount: previous.connectedCount,
           weights: const [],
-          totalWeight: estimatedTotal,
+          totalWeight: estimatedGross,
+          grossTotalWeight: estimatedGross,
+          gasRemaining: estimatedGas,
           usage: distributedUsage,
           sales: 0,
           addedCylinders: 0,

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../utils/gas_calculations.dart';
+
 class DailyEntry {
   DailyEntry({
     required this.id,
@@ -7,6 +9,8 @@ class DailyEntry {
     required this.connectedCount,
     required this.weights,
     required this.totalWeight,
+    required this.grossTotalWeight,
+    required this.gasRemaining,
     required this.usage,
     required this.sales,
     required this.addedCylinders,
@@ -20,6 +24,8 @@ class DailyEntry {
   final int connectedCount;
   final List<double> weights;
   final double totalWeight;
+  final double grossTotalWeight;
+  final double gasRemaining;
   final double usage;
   final double sales;
   final int addedCylinders;
@@ -29,14 +35,26 @@ class DailyEntry {
 
   factory DailyEntry.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
+    final connectedCount = (data['connectedCount'] ?? 0) as int;
+    final weights = (data['weights'] as List<dynamic>? ?? [])
+        .map((e) => (e as num).toDouble())
+        .toList();
+    final grossTotalWeight = (data['grossTotalWeight'] as num? ??
+            data['totalWeight'] as num? ??
+            0)
+        .toDouble();
+    final totalWeight = (data['totalWeight'] as num? ?? grossTotalWeight).toDouble();
+    final gasRemaining = (data['gasRemaining'] as num?)?.toDouble() ??
+        calculateGasRemaining(weights, connectedCount);
+
     return DailyEntry(
       id: doc.id,
       date: (data['date'] as Timestamp).toDate(),
-      connectedCount: (data['connectedCount'] ?? 0) as int,
-      weights: (data['weights'] as List<dynamic>? ?? [])
-          .map((e) => (e as num).toDouble())
-          .toList(),
-      totalWeight: (data['totalWeight'] as num? ?? 0).toDouble(),
+      connectedCount: connectedCount,
+      weights: weights,
+      totalWeight: totalWeight,
+      grossTotalWeight: grossTotalWeight,
+      gasRemaining: gasRemaining,
       usage: (data['usage'] as num? ?? 0).toDouble(),
       sales: (data['sales'] as num? ?? 0).toDouble(),
       addedCylinders: (data['addedCylinders'] ?? 0) as int,
@@ -51,6 +69,8 @@ class DailyEntry {
       'date': Timestamp.fromDate(date),
       'connectedCount': connectedCount,
       'weights': weights,
+      'grossTotalWeight': grossTotalWeight,
+      'gasRemaining': gasRemaining,
       'totalWeight': totalWeight,
       'usage': usage,
       'sales': sales,
@@ -67,6 +87,8 @@ class DailyEntry {
     int? connectedCount,
     List<double>? weights,
     double? totalWeight,
+    double? grossTotalWeight,
+    double? gasRemaining,
     double? usage,
     double? sales,
     int? addedCylinders,
@@ -80,6 +102,8 @@ class DailyEntry {
       connectedCount: connectedCount ?? this.connectedCount,
       weights: weights ?? this.weights,
       totalWeight: totalWeight ?? this.totalWeight,
+      grossTotalWeight: grossTotalWeight ?? this.grossTotalWeight,
+      gasRemaining: gasRemaining ?? this.gasRemaining,
       usage: usage ?? this.usage,
       sales: sales ?? this.sales,
       addedCylinders: addedCylinders ?? this.addedCylinders,

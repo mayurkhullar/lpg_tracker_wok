@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../models/daily_entry.dart';
 import '../providers/app_providers.dart';
 import '../utils/date_utils.dart';
+import '../utils/gas_calculations.dart';
 
 class EntryScreen extends ConsumerStatefulWidget {
   const EntryScreen({super.key});
@@ -134,9 +135,11 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
         entries.where((e) => normalizeDate(e.date) == _selectedDate.subtract(const Duration(days: 1))).toList();
     final yesterdayEntry = yesterday.isEmpty ? null : yesterday.first;
 
-    final totalWeight = _weights().fold<double>(0, (sum, e) => sum + e);
+    final weights = _weights();
+    final grossTotal = calculateGrossTotal(weights);
+    final gasRemaining = calculateGasRemaining(weights, _connectedCount);
     final estimatedUsage =
-        yesterdayEntry == null ? 0.0 : (yesterdayEntry.totalWeight - totalWeight).clamp(0, 9999);
+        yesterdayEntry == null ? 0.0 : calculateUsage(yesterdayEntry.gasRemaining, gasRemaining);
 
     final statusLabel = _isEditingExistingEntry
         ? 'Editing entry for ${DateFormat.yMMMd().format(_selectedDate)}'
@@ -267,9 +270,14 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Yesterday total: ${yesterdayEntry?.totalWeight.toStringAsFixed(2) ?? '--'} kg'),
+                    Text('Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '--'} kg'),
                     const SizedBox(height: 6),
-                    Text('Live total: ${totalWeight.toStringAsFixed(2)} kg'),
+                    Text(
+                      'Live gas remaining: ${gasRemaining.toStringAsFixed(2)} kg',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Gross total weight: ${grossTotal.toStringAsFixed(2)} kg'),
                     const SizedBox(height: 6),
                     Text('Estimated usage: ${estimatedUsage.toStringAsFixed(2)} kg'),
                     const SizedBox(height: 10),
