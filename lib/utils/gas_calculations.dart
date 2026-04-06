@@ -27,15 +27,14 @@ double calculateUsage(double previousGasRemaining, double currentGasRemaining) {
   return usage;
 }
 
-double calculateComparableCurrentGas(
+double calculateDailyUsage(
+  double previousGasRemaining,
   double currentGasRemaining, {
   int addedCylinders = 0,
-  int removedCylinders = 0,
 }) {
-  // Add-cylinder adjustment is intentionally implemented to exclude new stock
-  // from day-over-day usage. Remove-cylinder adjustment remains a simple
-  // symmetric offset for backward compatibility and may need a richer model.
   final addedGas = addedCylinders * kMaxGasContentPerCylinderKg;
-  final removedGas = removedCylinders * kMaxGasContentPerCylinderKg;
-  return currentGasRemaining - addedGas + removedGas;
+  return calculateUsage(
+    previousGasRemaining + addedGas,
+    currentGasRemaining,
+  );
 }

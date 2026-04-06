@@ -65,15 +65,14 @@ class DailyEntryRepository {
     final grossTotalWeight = calculateGrossTotal(weights);
     final gasRemaining = calculateGasRemaining(weights, connectedCount);
 
-    final adjustedTodayComparableGas = calculateComparableCurrentGas(
-      gasRemaining,
-      addedCylinders: addedCylinders,
-      removedCylinders: removedCylinders,
-    );
-
     final daysDiff = previous == null ? 1 : targetDate.difference(normalizeDate(previous.date)).inDays;
-    final usageAcrossGap =
-        previous == null ? 0.0 : calculateUsage(previous.gasRemaining, adjustedTodayComparableGas);
+    final usageAcrossGap = previous == null
+        ? 0.0
+        : calculateDailyUsage(
+            previous.gasRemaining,
+            gasRemaining,
+            addedCylinders: addedCylinders,
+          );
     final distributedUsage = daysDiff <= 0 ? 0.0 : usageAcrossGap / daysDiff;
 
     final newEntry = DailyEntry(

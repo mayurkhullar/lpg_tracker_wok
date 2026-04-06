@@ -207,11 +207,21 @@ class DashboardScreen extends ConsumerWidget {
     );
 
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: kScreenPadding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(dailyEntriesProvider);
+          ref.invalidate(purchasesProvider);
+          await Future.wait([
+            ref.read(dailyEntriesProvider.future),
+            ref.read(purchasesProvider.future),
+          ]);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: kScreenPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             StatCard(
               title: 'Gas Used Today',
               value: _usageDisplay(entries, todayEntry),
@@ -332,7 +342,8 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               );
             }),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -142,14 +142,13 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final weights = _weights();
     final grossTotal = calculateGrossTotal(weights);
     final gasRemaining = calculateGasRemaining(weights, _connectedCount);
-    final comparableGasRemaining = calculateComparableCurrentGas(
-      gasRemaining,
-      addedCylinders: _addedCylinders,
-      removedCylinders: _removedCylinders,
-    );
     final estimatedUsage = yesterdayEntry == null
         ? null
-        : calculateUsage(yesterdayEntry.gasRemaining, comparableGasRemaining);
+        : calculateDailyUsage(
+            yesterdayEntry.gasRemaining,
+            gasRemaining,
+            addedCylinders: _addedCylinders,
+          );
 
     final statusLabel = _isEditingExistingEntry
         ? 'Editing entry for ${DateFormat.yMMMd().format(_selectedDate)}'
