@@ -155,12 +155,15 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
         : 'Creating entry for ${DateFormat.yMMMd().format(_selectedDate)}';
 
     return Scaffold(
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(16),
-          children: [
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -193,10 +196,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       label: Text(DateFormat.yMMMd().format(_selectedDate)),
                     ),
                     const SizedBox(height: 16),
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         Text('Connected Cylinders', style: Theme.of(context).textTheme.titleMedium),
-                        const Spacer(),
                         IconButton(
                           onPressed: _connectedCount > 1
                               ? () {
@@ -405,49 +410,46 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 100),
-          ],
-        ),
-      ),
-      bottomSheet: SafeArea(
-        top: false,
-        child: Container(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          child: FilledButton(
-            onPressed: () async {
-              if (!_formKey.currentState!.validate()) return;
-              final today = normalizeDate(DateTime.now());
-              if (_selectedDate.isAfter(today)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Future dates are not allowed')),
-                );
-                return;
-              }
-              try {
-                await ref.read(dailyEntryRepositoryProvider).saveDailyEntry(
-                      date: _selectedDate,
-                      connectedCount: _connectedCount,
-                      weights: _weights(),
-                      sales: double.parse(_salesController.text.trim()),
-                      addedCylinders: _addedCylinders,
-                      removedCylinders: _removedCylinders,
-                      changeReason: _reason == 'Other' ? _otherReasonController.text.trim() : _reason,
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () async {
+                  if (!_formKey.currentState!.validate()) return;
+                  final today = normalizeDate(DateTime.now());
+                  if (_selectedDate.isAfter(today)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Future dates are not allowed')),
                     );
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Entry saved successfully')),
-                );
-                ref.read(currentTabIndexProvider.notifier).state = 0;
-              } catch (e) {
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Failed to save: $e')),
-                );
-              }
-            },
-            child: Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
+                    return;
+                  }
+                  try {
+                    await ref.read(dailyEntryRepositoryProvider).saveDailyEntry(
+                          date: _selectedDate,
+                          connectedCount: _connectedCount,
+                          weights: _weights(),
+                          sales: double.parse(_salesController.text.trim()),
+                          addedCylinders: _addedCylinders,
+                          removedCylinders: _removedCylinders,
+                          changeReason: _reason == 'Other' ? _otherReasonController.text.trim() : _reason,
+                        );
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Entry saved successfully')),
+                    );
+                    ref.read(currentTabIndexProvider.notifier).state = 0;
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to save: $e')),
+                    );
+                  }
+                },
+                child: Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
+              ),
+            ),
+              ],
+            ),
           ),
         ),
       ),
