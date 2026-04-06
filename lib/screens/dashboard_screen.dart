@@ -122,8 +122,11 @@ class DashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entries = ref.watch(dailyEntriesProvider).value ?? [];
-    final purchases = ref.watch(purchasesProvider).value ?? [];
+    final entriesAsync = ref.watch(dailyEntriesProvider);
+    final purchasesAsync = ref.watch(purchasesProvider);
+    final entries = entriesAsync.value ?? [];
+    final purchases = purchasesAsync.value ?? [];
+    final isLoading = entriesAsync.isLoading || purchasesAsync.isLoading;
     final purchaseRepository = ref.watch(purchaseRepositoryProvider);
     final today = normalizeDate(DateTime.now());
 
@@ -222,6 +225,10 @@ class DashboardScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+            if (isLoading) const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: LinearProgressIndicator(minHeight: 2),
+            ),
             StatCard(
               title: 'Gas Used Today',
               value: _usageDisplay(entries, todayEntry),

@@ -10,7 +10,16 @@ import '../utils/gas_calculations.dart';
 import '../widgets/dashboard_layout.dart';
 
 class EntryScreen extends ConsumerStatefulWidget {
-  const EntryScreen({super.key});
+  const EntryScreen({
+    super.key,
+    this.initialDate,
+    this.lockDate = false,
+    this.popOnSave = false,
+  });
+
+  final DateTime? initialDate;
+  final bool lockDate;
+  final bool popOnSave;
 
   @override
   ConsumerState<EntryScreen> createState() => _EntryScreenState();
@@ -28,15 +37,18 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   int _addedCylinders = 0;
   int _removedCylinders = 0;
   String _reason = 'Maintenance';
-  DateTime _selectedDate = normalizeDate(DateTime.now());
+  late DateTime _selectedDate;
   bool _isEditingExistingEntry = false;
   bool _isLoadingEntry = false;
+  bool _isSaving = false;
+  bool _isRecalculating = false;
   List<TextEditingController> _weightControllers = [];
   List<FocusNode> _weightFocusNodes = [];
 
   @override
   void initState() {
     super.initState();
+    _selectedDate = normalizeDate(widget.initialDate ?? DateTime.now());
     _rebuildWeightFields(_connectedCount);
     _loadEntryForSelectedDate();
   }
@@ -128,9 +140,77 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       .toList();
 
   bool get _countChanged => _addedCylinders > 0 || _removedCylinders > 0;
+  bool get _showFullscreenLoader => _isLoadingEntry || _isRecalculating;
   TextStyle? _labelStyle(BuildContext context) => Theme.of(context).textTheme.titleMedium;
   TextStyle? _valueStyle(BuildContext context) =>
       Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
+
+  Future<void> _saveEntry() async {
+    if (!_formKey.currentState!.validate()) return;
+    final today = normalizeDate(DateTime.now());
+    if (_selectedDate.isAfter(today)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Future dates are not allowed')),
+      );
+      return;
+    }
+
+    final repository = ref.read(dailyEntryRepositoryProvider);
+    final sales = double.parse(_salesController.text.trim());
+    final changeReason = _reason == 'Other' ? _otherReasonController.text.trim() : _reason;
+
+    setState(() => _isSaving = true);
+    try {
+      if (_isEditingExistingEntry && widget.lockDate) {
+        setState(() => _isRecalculating = true);
+        await repository.updateEntryAndRecalculateFuture(
+          id: dayId(_selectedDate),
+          connectedCount: _connectedCount,
+          weights: _weights(),
+          sales: sales,
+          addedCylinders: _addedCylinders,
+          removedCylinders: _removedCylinders,
+          changeReason: changeReason,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Future entries updated')),
+        );
+      } else {
+        await repository.saveDailyEntry(
+          date: _selectedDate,
+          connectedCount: _connectedCount,
+          weights: _weights(),
+          sales: sales,
+          addedCylinders: _addedCylinders,
+          removedCylinders: _removedCylinders,
+          changeReason: changeReason,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entry saved successfully')),
+        );
+      }
+
+      if (!mounted) return;
+      if (widget.popOnSave) {
+        Navigator.of(context).pop(true);
+      } else {
+        ref.read(currentTabIndexProvider.notifier).state = 0;
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _isRecalculating = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -155,344 +235,337 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
         : 'Creating entry for ${DateFormat.yMMMd().format(_selectedDate)}';
 
     return Scaffold(
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(
-              kScreenPadding.left,
-              kScreenPadding.top,
-              kScreenPadding.right,
-              kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-            const SectionHeader('Basic Info'),
-            const SizedBox(height: 10),
-            Card(
-              margin: EdgeInsets.zero,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
+      appBar: widget.lockDate
+          ? AppBar(
+              title: const Text('Edit Entry'),
+            )
+          : null,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: EdgeInsets.fromLTRB(
+                  kScreenPadding.left,
+                  kScreenPadding.top,
+                  kScreenPadding.right,
+                  kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(statusLabel, style: Theme.of(context).textTheme.titleMedium),
-                    if (_isLoadingEntry) ...[
-                      const SizedBox(height: 8),
-                      const LinearProgressIndicator(minHeight: 2),
-                    ],
-                    const SizedBox(height: 12),
-                    Text('Date', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final now = normalizeDate(DateTime.now());
-                        final date = await showDatePicker(
-                          context: context,
-                          firstDate: DateTime(2020),
-                          lastDate: now,
-                          initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
-                        );
-                        if (date != null) {
-                          setState(() => _selectedDate = normalizeDate(date));
-                          await _loadEntryForSelectedDate();
-                        }
-                      },
-                      icon: const Icon(Icons.calendar_today),
-                      label: Text(DateFormat.yMMMd().format(_selectedDate)),
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        Text('Connected Cylinders', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
-                        IconButton(
-                          onPressed: _connectedCount > 1
-                              ? () {
-                                  setState(() {
-                                    _connectedCount--;
-                                    _rebuildWeightFields(_connectedCount);
-                                  });
-                                }
-                              : null,
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
-                        Text('$_connectedCount', style: Theme.of(context).textTheme.titleLarge),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _connectedCount++;
-                              _rebuildWeightFields(_connectedCount);
-                            });
-                          },
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: kSectionSpacing),
-            const SectionHeader('Weights'),
-            const SizedBox(height: 10),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 250),
-              child: Card(
-                margin: EdgeInsets.zero,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Cylinder Weights (kg)', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 12),
-                      ...List.generate(_connectedCount, (index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: TextFormField(
-                            controller: _weightControllers[index],
-                            focusNode: _weightFocusNodes[index],
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            textInputAction:
-                                index == _connectedCount - 1 ? TextInputAction.done : TextInputAction.next,
-                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
-                            autofocus: index == 0,
-                            onChanged: (_) => setState(() {}),
-                            onTap: () {
-                              _weightControllers[index].selection = TextSelection(
-                                baseOffset: 0,
-                                extentOffset: _weightControllers[index].text.length,
-                              );
-                            },
-                            onFieldSubmitted: (_) {
-                              if (index < _connectedCount - 1) {
-                                _weightFocusNodes[index + 1].requestFocus();
-                              }
-                            },
-                            decoration: InputDecoration(
-                              labelText: 'Cylinder ${index + 1} weight',
-                              border: const OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              final weight = double.tryParse(value ?? '');
-                              if (weight == null) return 'Required';
-                              if (weight < 19.1 || weight > 38) {
-                                return 'Weight must be between 19.1 and 38';
-                              }
-                              return null;
-                            },
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: kSectionSpacing),
-            const SectionHeader('Results (Read-only)'),
-            const SizedBox(height: 10),
-            Card(
-              margin: EdgeInsets.zero,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Gas Remaining', style: _labelStyle(context)),
-                    const SizedBox(height: 4),
-                    Text('${gasRemaining.toStringAsFixed(2)} kg', style: _valueStyle(context)),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Based on cylinder weight minus tare (19.1 kg each)',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '—'} kg',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('Estimated Usage Today', style: _labelStyle(context)),
-                    const SizedBox(height: 4),
-                    Text(
-                      estimatedUsage == null ? '—' : '${estimatedUsage.toStringAsFixed(2)} kg',
-                      style: _valueStyle(context),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Gross total weight: ${grossTotal.toStringAsFixed(2)} kg',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    if (_addedCylinders > 0) ...[
-                      const SizedBox(height: 12),
-                      Container(
+                    const SectionHeader('Basic Info'),
+                    const SizedBox(height: 10),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(statusLabel, style: Theme.of(context).textTheme.titleMedium),
+                            if (_isLoadingEntry) ...[
+                              const SizedBox(height: 8),
+                              const LinearProgressIndicator(minHeight: 2),
+                            ],
+                            const SizedBox(height: 12),
+                            Text('Date', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: widget.lockDate
+                                  ? null
+                                  : () async {
+                                      final now = normalizeDate(DateTime.now());
+                                      final date = await showDatePicker(
+                                        context: context,
+                                        firstDate: DateTime(2020),
+                                        lastDate: now,
+                                        initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
+                                      );
+                                      if (date != null) {
+                                        setState(() => _selectedDate = normalizeDate(date));
+                                        await _loadEntryForSelectedDate();
+                                      }
+                                    },
+                              icon: const Icon(Icons.calendar_today),
+                              label: Text(DateFormat.yMMMd().format(_selectedDate)),
+                            ),
+                            const SizedBox(height: 16),
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                Text('Connected Cylinders',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
+                                IconButton(
+                                  onPressed: _connectedCount > 1
+                                      ? () {
+                                          setState(() {
+                                            _connectedCount--;
+                                            _rebuildWeightFields(_connectedCount);
+                                          });
+                                        }
+                                      : null,
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                ),
+                                Text('$_connectedCount', style: Theme.of(context).textTheme.titleLarge),
+                                IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _connectedCount++;
+                                      _rebuildWeightFields(_connectedCount);
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add_circle_outline),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        child: Text(
-                          '+$_addedCylinders cylinder${_addedCylinders == 1 ? '' : 's'} added. Usage adjusted.',
-                          style: const TextStyle(color: Colors.orange),
-                        ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: kSectionSpacing),
-            const SectionHeader('Sales'),
-            const SizedBox(height: 10),
-            Card(
-              margin: EdgeInsets.zero,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _salesController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        prefixText: '₹ ',
-                        labelText: 'Sales',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        final d = double.tryParse(value ?? '');
-                        if (d == null) return 'Enter a valid sales value';
-                        if (d < 0) return 'Cannot be negative';
-                        return null;
-                      },
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: kSectionSpacing),
-            const SectionHeader('Adjustments'),
-            const SizedBox(height: 10),
-            Card(
-              margin: EdgeInsets.zero,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _addedCylindersController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Added cylinders',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (v) => setState(() => _addedCylinders = int.tryParse(v) ?? 0),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _removedCylindersController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Removed cylinders',
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (v) => setState(() => _removedCylinders = int.tryParse(v) ?? 0),
-                    ),
-                    if (_countChanged) ...[
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _reason,
-                        items: const [
-                          DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
-                          DropdownMenuItem(value: 'Leak Test', child: Text('Leak Test')),
-                          DropdownMenuItem(value: 'Operational Change', child: Text('Operational Change')),
-                          DropdownMenuItem(value: 'Other', child: Text('Other')),
-                        ],
-                        decoration: const InputDecoration(
-                          labelText: 'Change reason',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (v) => setState(() => _reason = v ?? 'Maintenance'),
-                      ),
-                      if (_reason == 'Other') ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _otherReasonController,
-                          decoration: const InputDecoration(
-                            labelText: 'Other reason',
-                            border: OutlineInputBorder(),
+                    const SizedBox(height: kSectionSpacing),
+                    const SectionHeader('Weights'),
+                    const SizedBox(height: 10),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 250),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Cylinder Weights (kg)', style: Theme.of(context).textTheme.titleMedium),
+                              const SizedBox(height: 12),
+                              ...List.generate(_connectedCount, (index) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: TextFormField(
+                                    controller: _weightControllers[index],
+                                    focusNode: _weightFocusNodes[index],
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    textInputAction:
+                                        index == _connectedCount - 1 ? TextInputAction.done : TextInputAction.next,
+                                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+                                    autofocus: index == 0,
+                                    onChanged: (_) => setState(() {}),
+                                    onTap: () {
+                                      _weightControllers[index].selection = TextSelection(
+                                        baseOffset: 0,
+                                        extentOffset: _weightControllers[index].text.length,
+                                      );
+                                    },
+                                    onFieldSubmitted: (_) {
+                                      if (index < _connectedCount - 1) {
+                                        _weightFocusNodes[index + 1].requestFocus();
+                                      }
+                                    },
+                                    decoration: InputDecoration(
+                                      labelText: 'Cylinder ${index + 1} weight',
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                    validator: (value) {
+                                      final weight = double.tryParse(value ?? '');
+                                      if (weight == null) return 'Required';
+                                      if (weight < 19.1 || weight > 38) {
+                                        return 'Weight must be between 19.1 and 38';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                );
+                              }),
+                            ],
                           ),
                         ),
-                      ],
-                    ],
+                      ),
+                    ),
+                    const SizedBox(height: kSectionSpacing),
+                    const SectionHeader('Results (Read-only)'),
+                    const SizedBox(height: 10),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Gas Remaining', style: _labelStyle(context)),
+                            const SizedBox(height: 4),
+                            Text('${gasRemaining.toStringAsFixed(2)} kg', style: _valueStyle(context)),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Based on cylinder weight minus tare (19.1 kg each)',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '—'} kg',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('Estimated Usage Today', style: _labelStyle(context)),
+                            const SizedBox(height: 4),
+                            Text(
+                              estimatedUsage == null ? '—' : '${estimatedUsage.toStringAsFixed(2)} kg',
+                              style: _valueStyle(context),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Gross total weight: ${grossTotal.toStringAsFixed(2)} kg',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            if (_addedCylinders > 0) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '+$_addedCylinders cylinder${_addedCylinders == 1 ? '' : 's'} added. Usage adjusted.',
+                                  style: const TextStyle(color: Colors.orange),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: kSectionSpacing),
+                    const SectionHeader('Sales'),
+                    const SizedBox(height: 10),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _salesController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                prefixText: '₹ ',
+                                labelText: 'Sales',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                final d = double.tryParse(value ?? '');
+                                if (d == null) return 'Enter a valid sales value';
+                                if (d < 0) return 'Cannot be negative';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: kSectionSpacing),
+                    const SectionHeader('Adjustments'),
+                    const SizedBox(height: 10),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _addedCylindersController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Added cylinders',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => _addedCylinders = int.tryParse(v) ?? 0),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _removedCylindersController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Removed cylinders',
+                                border: OutlineInputBorder(),
+                              ),
+                              onChanged: (v) => setState(() => _removedCylinders = int.tryParse(v) ?? 0),
+                            ),
+                            if (_countChanged) ...[
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String>(
+                                initialValue: _reason,
+                                items: const [
+                                  DropdownMenuItem(value: 'Maintenance', child: Text('Maintenance')),
+                                  DropdownMenuItem(value: 'Leak Test', child: Text('Leak Test')),
+                                  DropdownMenuItem(value: 'Operational Change', child: Text('Operational Change')),
+                                  DropdownMenuItem(value: 'Other', child: Text('Other')),
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Change reason',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onChanged: (v) => setState(() => _reason = v ?? 'Maintenance'),
+                              ),
+                              if (_reason == 'Other') ...[
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: _otherReasonController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Other reason',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: kSectionSpacing),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _isSaving ? null : _saveEntry,
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: kSectionSpacing),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () async {
-                  if (!_formKey.currentState!.validate()) return;
-                  final today = normalizeDate(DateTime.now());
-                  if (_selectedDate.isAfter(today)) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Future dates are not allowed')),
-                    );
-                    return;
-                  }
-                  try {
-                    await ref.read(dailyEntryRepositoryProvider).saveDailyEntry(
-                          date: _selectedDate,
-                          connectedCount: _connectedCount,
-                          weights: _weights(),
-                          sales: double.parse(_salesController.text.trim()),
-                          addedCylinders: _addedCylinders,
-                          removedCylinders: _removedCylinders,
-                          changeReason: _reason == 'Other' ? _otherReasonController.text.trim() : _reason,
-                        );
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Entry saved successfully')),
-                    );
-                    ref.read(currentTabIndexProvider.notifier).state = 0;
-                  } catch (e) {
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to save: $e')),
-                    );
-                  }
-                },
-                child: Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
-              ),
-            ),
-              ],
             ),
           ),
-        ),
+          if (_showFullscreenLoader)
+            Container(
+              color: Colors.black.withValues(alpha: 0.05),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
       ),
     );
   }

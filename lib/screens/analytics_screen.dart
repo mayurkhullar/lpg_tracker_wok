@@ -27,6 +27,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   late DateTime _rangeEnd;
   AnalyticsFilterMode _mode = AnalyticsFilterMode.today;
   String? _rangeError;
+  bool _isFiltering = false;
 
   @override
   void initState() {
@@ -75,7 +76,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       lastDate: today,
     );
     if (selected == null) return;
-    setState(() {
+    await _runFilterUpdate(() {
       _singleDate = normalizeDate(selected);
       _mode = AnalyticsFilterMode.singleDate;
     });
@@ -92,7 +93,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     );
     if (selected == null) return;
     final normalized = normalizeDate(selected);
-    setState(() {
+    await _runFilterUpdate(() {
       if (isStart) {
         _rangeStart = normalized;
       } else {
@@ -114,12 +115,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
   void _setPresetRange(int days) {
     final today = normalizeDate(DateTime.now());
-    setState(() {
+    _runFilterUpdate(() {
       _mode = AnalyticsFilterMode.dateRange;
       _rangeEnd = today;
       _rangeStart = normalizeDate(today.subtract(Duration(days: days - 1)));
       _rangeError = _validateRange(_rangeStart, _rangeEnd);
     });
+  }
+
+  Future<void> _runFilterUpdate(VoidCallback update) async {
+    setState(() {
+      _isFiltering = true;
+      update();
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+    setState(() => _isFiltering = false);
   }
 
   Widget _buildDateButton({
@@ -159,7 +170,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 ],
                 selected: {_mode},
                 onSelectionChanged: (selection) {
-                  setState(() {
+                  _runFilterUpdate(() {
                     _mode = selection.first;
                     if (_mode == AnalyticsFilterMode.today) {
                       final today = normalizeDate(DateTime.now());
@@ -254,12 +265,17 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final allEntries = ref.watch(dailyEntriesProvider).value ?? [];
+    final entriesAsync = ref.watch(dailyEntriesProvider);
+    final purchasesAsync = ref.watch(purchasesProvider);
+    final allEntries = entriesAsync.value ?? [];
+    if (entriesAsync.isLoading && allEntries.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (allEntries.isEmpty) {
       return const Center(child: Text('No analytics yet. Add entries first.'));
     }
 
-    final purchases = ref.watch(purchasesProvider).value ?? [];
+    final purchases = purchasesAsync.value ?? [];
     final purchaseRepository = ref.watch(purchaseRepositoryProvider);
 
     final sortedEntries = [...allEntries]..sort((a, b) => a.date.compareTo(b.date));
@@ -339,6 +355,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_isFiltering || purchasesAsync.isLoading || entriesAsync.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
             _buildFilterCard(),
             const SizedBox(height: 18),
             if (filteredEntries.isEmpty || hasRangeError)

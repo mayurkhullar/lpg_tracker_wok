@@ -28,8 +28,28 @@ class DailyEntryRepository {
     return snap.docs.map(DailyEntry.fromDoc).toList();
   }
 
+  Future<List<DailyEntry>> fetchEntriesInRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final normalizedStart = normalizeDate(start);
+    final normalizedEnd = normalizeDate(end);
+    final snap = await _service.dailyEntries
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(normalizedStart))
+        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(normalizedEnd))
+        .orderBy('date', descending: true)
+        .get();
+    return snap.docs.map(DailyEntry.fromDoc).toList();
+  }
+
   Future<DailyEntry?> getByDate(DateTime date) async {
     final id = dayId(date);
+    final doc = await _service.dailyEntries.doc(id).get();
+    if (!doc.exists) return null;
+    return DailyEntry.fromDoc(doc);
+  }
+
+  Future<DailyEntry?> getById(String id) async {
     final doc = await _service.dailyEntries.doc(id).get();
     if (!doc.exists) return null;
     return DailyEntry.fromDoc(doc);
@@ -123,6 +143,68 @@ class DailyEntryRepository {
     await _recomputeAnomalies();
   }
 
+  Future<void> updateEntryAndRecalculateFuture({
+    required String id,
+    required int connectedCount,
+    required List<double> weights,
+    required double sales,
+    required int addedCylinders,
+    required int removedCylinders,
+    required String changeReason,
+  }) async {
+    final existing = await getById(id);
+    if (existing == null) {
+      throw ArgumentError('Entry not found for $id');
+    }
+
+    final previous = await getPrevious(existing.date);
+    final gasRemaining = calculateGasRemaining(weights, connectedCount);
+    final grossTotalWeight = calculateGrossTotal(weights);
+    final updatedUsage = previous == null
+        ? 0.0
+        : calculateDailyUsage(
+            previous.gasRemaining,
+            gasRemaining,
+            addedCylinders: addedCylinders,
+          );
+
+    await _service.dailyEntries.doc(id).set({
+      'connectedCount': connectedCount,
+      'weights': weights,
+      'totalWeight': grossTotalWeight,
+      'grossTotalWeight': grossTotalWeight,
+      'gasRemaining': gasRemaining,
+      'usage': updatedUsage,
+      'sales': sales,
+      'addedCylinders': addedCylinders,
+      'removedCylinders': removedCylinders,
+      'changeReason': changeReason,
+    }, SetOptions(merge: true));
+
+    final futureSnap = await _service.dailyEntries
+        .where('date', isGreaterThan: Timestamp.fromDate(normalizeDate(existing.date)))
+        .orderBy('date', descending: false)
+        .get();
+
+    if (futureSnap.docs.isNotEmpty) {
+      var previousGasRemaining = gasRemaining;
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in futureSnap.docs) {
+        final entry = DailyEntry.fromDoc(doc);
+        final usage = calculateDailyUsage(
+          previousGasRemaining,
+          entry.gasRemaining,
+          addedCylinders: entry.addedCylinders,
+        );
+        batch.set(_service.dailyEntries.doc(entry.id), {'usage': usage}, SetOptions(merge: true));
+        previousGasRemaining = entry.gasRemaining;
+      }
+      await batch.commit();
+    }
+
+    await _recomputeAnomalies();
+  }
+
   Future<void> _recomputeAnomalies() async {
     final entries = (await fetchAll(limit: 400)).reversed.toList();
     if (entries.isEmpty) return;
@@ -134,7 +216,7 @@ class DailyEntryRepository {
           .map((e) => e.usage)
           .where((u) => u > 0)
           .toList();
-      bool anomaly = false;
+      var anomaly = false;
       if (history.length >= 7) {
         final mean = history.reduce((a, b) => a + b) / history.length;
         final variance = history.fold<double>(0, (acc, u) => acc + math.pow(u - mean, 2)) /

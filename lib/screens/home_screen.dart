@@ -7,6 +7,7 @@ import 'analytics_screen.dart';
 import 'dashboard_screen.dart';
 import 'entry_screen.dart';
 import 'purchases_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +22,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     EntryScreen(),
     AnalyticsScreen(),
     PurchasesScreen(),
+    HistoryScreen(),
   ];
 
   @override
@@ -52,6 +54,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           NavigationDestination(icon: Icon(Icons.edit_note), label: 'Entry'),
           NavigationDestination(icon: Icon(Icons.analytics_outlined), label: 'Analytics'),
           NavigationDestination(icon: Icon(Icons.shopping_basket_outlined), label: 'Purchases'),
+          NavigationDestination(icon: Icon(Icons.history_outlined), label: 'History'),
         ],
       ),
     );
