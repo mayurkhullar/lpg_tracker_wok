@@ -7,6 +7,7 @@ import '../models/purchase.dart';
 import '../providers/app_providers.dart';
 import '../services/purchase_repository.dart';
 import '../utils/date_utils.dart';
+import '../utils/insight_calculations.dart';
 import '../widgets/dashboard_layout.dart';
 import '../widgets/metric_card.dart';
 
@@ -38,15 +39,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     _rangeEnd = today;
   }
 
-  bool _hasPreviousEntry(List<DailyEntry> entries, DateTime date) {
-    final target = normalizeDate(date);
-    return entries.any((entry) => normalizeDate(entry.date).isBefore(target));
-  }
-
-  bool _isValidUsageEntry(List<DailyEntry> entries, DailyEntry entry) {
-    return _hasPreviousEntry(entries, entry.date) && entry.usage.isFinite && entry.usage >= 0;
-  }
-
   String _usageDisplay(double? value) {
     if (value == null) return '—';
     return '${value.toStringAsFixed(2)} kg';
@@ -60,6 +52,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   String _usageDayDisplay(DailyEntry? entry) {
     if (entry == null) return '—';
     return '${entry.usage.toStringAsFixed(2)} kg\n${DateFormat.MMMd().format(entry.date)}';
+  }
+
+  String _gasPerThousandDisplay(double? value) {
+    if (value == null) return '—';
+    return '${value.toStringAsFixed(2)} kg / ₹1000 sales';
   }
 
   String _countDisplay(int? value) {
@@ -254,6 +251,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     required List<Purchase> purchases,
     required PurchaseRepository purchaseRepository,
   }) {
+    if (!entry.usage.isFinite || entry.usage < 0) return null;
     final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(
       entry.date,
       purchases,
@@ -292,14 +290,14 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     }).toList();
 
     final treatAsSingle = !isRangeMode || _rangeStart == _rangeEnd;
-    final validFilteredEntries = filteredEntries.where((entry) => _isValidUsageEntry(sortedEntries, entry)).toList();
+    final validFilteredEntries = filteredEntries.where((entry) => isValidUsageEntry(sortedEntries, entry)).toList();
 
     DailyEntry? singleEntry;
     if (treatAsSingle) {
       singleEntry = filteredEntries.isNotEmpty ? filteredEntries.last : null;
     }
 
-    final singleGasUsed = singleEntry != null && _isValidUsageEntry(sortedEntries, singleEntry)
+    final singleGasUsed = singleEntry != null && isValidUsageEntry(sortedEntries, singleEntry)
         ? singleEntry.usage
         : null;
     final singleGasRemaining = singleEntry?.gasRemaining;
@@ -311,6 +309,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             purchaseRepository: purchaseRepository,
           );
     final singleSales = singleEntry?.sales;
+    final singleGasPer1000 = gasPer1000Sales(gasUsed: singleGasUsed, sales: singleSales);
     final singleCylinderCount = singleEntry?.connectedCount;
     final singleAddedRemoved = singleEntry == null
         ? null
@@ -331,6 +330,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final totalSales = validFilteredEntries.isEmpty
         ? null
         : validFilteredEntries.fold<double>(0, (sum, entry) => sum + entry.sales);
+    final gasPer1000ForRange = gasPer1000Sales(gasUsed: totalUsage, sales: totalSales);
 
     var hasCost = false;
     final totalGasCost = validFilteredEntries.fold<double>(0, (sum, entry) {
@@ -345,9 +345,20 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     });
 
     final totalGasCostValue = hasCost ? totalGasCost : null;
-    final salesPerKg =
-        (totalSales == null || totalUsage == null || totalUsage <= 0) ? null : totalSales / totalUsage;
     final accentColor = Theme.of(context).colorScheme.primary;
+
+    final weeklySummary = buildLast7DaysSummary(sortedEntries, today: today);
+    var weeklyHasCost = false;
+    final weeklyGasCost = weeklySummary.validEntries.fold<double>(0, (sum, entry) {
+      final dailyCost = _dailyGasCost(
+        entry: entry,
+        purchases: purchases,
+        purchaseRepository: purchaseRepository,
+      );
+      if (dailyCost == null) return sum;
+      weeklyHasCost = true;
+      return sum + dailyCost;
+    });
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -396,6 +407,11 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   StatCard(title: 'Gas Cost', value: _currencyDisplay(singleGasCost), fitValue: true),
                   StatCard(title: 'Sales', value: _currencyDisplay(singleSales), fitValue: true),
                   StatCard(
+                    title: 'Gas per ₹1000 Sales',
+                    value: _gasPerThousandDisplay(singleGasPer1000),
+                    valueMaxLines: 3,
+                  ),
+                  StatCard(
                     title: 'Cylinder Count',
                     value: _countDisplay(singleCylinderCount),
                     fitValue: true,
@@ -435,10 +451,43 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     fitValue: true,
                   ),
                   StatCard(title: 'Total Sales', value: _currencyDisplay(totalSales), fitValue: true),
-                  StatCard(title: 'Sales per kg', value: _currencyDisplay(salesPerKg), fitValue: true),
+                  StatCard(
+                    title: 'Gas per ₹1000 Sales',
+                    value: _gasPerThousandDisplay(gasPer1000ForRange),
+                    valueMaxLines: 3,
+                  ),
                 ],
               ),
             ],
+            const SizedBox(height: kSectionSpacing),
+            const SectionHeader('Last 7 Days Summary'),
+            const SizedBox(height: 12),
+            ResponsiveGrid(
+              childAspectRatio: 1.35,
+              children: [
+                StatCard(
+                  title: 'Total Gas Used (7 days)',
+                  value: _usageDisplay(weeklySummary.totalGasUsed),
+                ),
+                StatCard(
+                  title: 'Average Daily Usage',
+                  value: _usageDisplay(weeklySummary.averageDailyUsage),
+                ),
+                StatCard(
+                  title: 'Highest Usage Day',
+                  value: _usageDayDisplay(weeklySummary.highestUsageEntry),
+                  valueMaxLines: 3,
+                ),
+                StatCard(
+                  title: 'Total Gas Cost (7 days)',
+                  value: _currencyDisplay(weeklyHasCost ? weeklyGasCost : null),
+                ),
+                StatCard(
+                  title: 'Total Sales (7 days)',
+                  value: _currencyDisplay(weeklySummary.totalSales),
+                ),
+              ],
+            ),
             const SizedBox(height: kSectionSpacing),
           ],
         ),
