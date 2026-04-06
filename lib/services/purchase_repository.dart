@@ -43,7 +43,7 @@ class PurchaseRepository {
     if (sameDaySnap.docs.isNotEmpty) {
       final sameDayPurchases = sameDaySnap.docs.map(Purchase.fromDoc).toList();
       final totalCost =
-          sameDayPurchases.fold<double>(0, (sum, purchase) => sum + purchase.costPerCylinder);
+          sameDayPurchases.fold<double>(0, (total, purchase) => total + purchase.costPerCylinder);
       return totalCost / sameDayPurchases.length;
     }
 
@@ -65,7 +65,7 @@ class PurchaseRepository {
         .toList();
     if (sameDayPurchases.isNotEmpty) {
       final totalCost =
-          sameDayPurchases.fold<double>(0, (sum, purchase) => sum + purchase.costPerCylinder);
+          sameDayPurchases.fold<double>(0, (total, purchase) => total + purchase.costPerCylinder);
       return totalCost / sameDayPurchases.length;
     }
 

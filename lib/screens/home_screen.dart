@@ -37,7 +37,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: syncStatusAsync.when(
               data: (status) => SyncStatusBadge(status: status),
               loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SyncStatusBadge(status: SyncStatus.offline),
+              error: (error, stackTrace) =>
+                  const SyncStatusBadge(status: SyncStatus.offline),
             ),
           ),
         ],
