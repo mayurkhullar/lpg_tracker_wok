@@ -25,7 +25,7 @@ class StatCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
     final valueStyle = textTheme.titleLarge?.copyWith(
-      fontSize: isPrimary ? 26 : 22,
+      fontSize: isPrimary ? 30 : 21,
       color: color ?? colorScheme.onSurface,
       fontWeight: FontWeight.w700,
       height: 1.15,
@@ -72,7 +72,7 @@ class StatCard extends StatelessWidget {
               Text(
                 title,
                 style: textTheme.bodySmall?.copyWith(
-                  fontSize: 13,
+                  fontSize: 12,
                   color: colorScheme.onSurfaceVariant,
                   fontWeight: FontWeight.w500,
                 ),

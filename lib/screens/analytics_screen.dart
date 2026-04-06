@@ -340,7 +340,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildFilterCard(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             if (filteredEntries.isEmpty || hasRangeError)
               const InsightBanner(
                 message: 'No data available for selected period',
@@ -358,38 +358,33 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 isPrimary: true,
                 color: accentColor,
               ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final compactLayout = constraints.maxWidth < 380;
-                  return GridView.count(
-                    crossAxisCount: compactLayout ? 1 : 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: compactLayout ? 2.9 : 1.32,
-                    children: [
-                      StatCard(
-                        title: 'Gas Remaining',
-                        value: _usageDisplay(singleGasRemaining),
-                        fitValue: true,
-                      ),
-                      StatCard(title: 'Gas Cost', value: _currencyDisplay(singleGasCost), fitValue: true),
-                      StatCard(title: 'Sales', value: _currencyDisplay(singleSales), fitValue: true),
-                      StatCard(
-                        title: 'Cylinder Count',
-                        value: _countDisplay(singleCylinderCount),
-                        fitValue: true,
-                      ),
-                      StatCard(
-                        title: 'Added / Removed Cylinders',
-                        value: singleAddedRemoved ?? '—',
-                        fitValue: true,
-                      ),
-                    ],
-                  );
-                },
+              const SizedBox(height: 14),
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                childAspectRatio: 1.55,
+                children: [
+                  StatCard(
+                    title: 'Gas Remaining',
+                    value: _usageDisplay(singleGasRemaining),
+                    fitValue: true,
+                  ),
+                  StatCard(title: 'Gas Cost', value: _currencyDisplay(singleGasCost), fitValue: true),
+                  StatCard(title: 'Sales', value: _currencyDisplay(singleSales), fitValue: true),
+                  StatCard(
+                    title: 'Cylinder Count',
+                    value: _countDisplay(singleCylinderCount),
+                    fitValue: true,
+                  ),
+                  StatCard(
+                    title: 'Added / Removed Cylinders',
+                    value: singleAddedRemoved ?? '—',
+                    fitValue: true,
+                  ),
+                ],
               ),
             ] else ...[
               const SectionHeader('Range Summary'),
