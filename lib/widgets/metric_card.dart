@@ -56,6 +56,7 @@ class StatCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -69,7 +70,7 @@ class StatCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 10),
-            Expanded(child: Align(alignment: Alignment.centerLeft, child: valueWidget)),
+            Align(alignment: Alignment.topLeft, child: valueWidget),
           ],
         ),
       ),
