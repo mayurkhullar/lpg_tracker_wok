@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="lpg_tracker_wok"
+        android:label="LPG WOK"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
