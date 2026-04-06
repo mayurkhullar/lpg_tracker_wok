@@ -7,7 +7,6 @@ import '../models/purchase.dart';
 import '../providers/app_providers.dart';
 import '../services/purchase_repository.dart';
 import '../utils/date_utils.dart';
-import '../utils/gas_calculations.dart';
 import '../widgets/dashboard_layout.dart';
 import 'entry_detail_screen.dart';
 
@@ -80,7 +79,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: kScreenPadding,
                           itemCount: _entries.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          separatorBuilder: (context, index) => const SizedBox(height: 10),
                           itemBuilder: (context, index) {
                             final entry = _entries[index];
                             final gasCost = _dailyGasCost(

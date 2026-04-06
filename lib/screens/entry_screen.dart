@@ -140,7 +140,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
       .toList();
 
   bool get _countChanged => _addedCylinders > 0 || _removedCylinders > 0;
-  bool get _showFullscreenLoader => _isLoadingEntry || _isRecalculating;
+  bool get _showRecalculationOverlay => _isRecalculating;
   TextStyle? _labelStyle(BuildContext context) => Theme.of(context).textTheme.titleMedium;
   TextStyle? _valueStyle(BuildContext context) =>
       Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
@@ -204,11 +204,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
         SnackBar(content: Text('Failed to save: $e')),
       );
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isSaving = false;
-        _isRecalculating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _isRecalculating = false;
+        });
+      }
     }
   }
 
@@ -560,10 +561,30 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               ),
             ),
           ),
-          if (_showFullscreenLoader)
-            Container(
-              color: Colors.black.withValues(alpha: 0.05),
-              child: const Center(child: CircularProgressIndicator()),
+          if (_showRecalculationOverlay)
+            ColoredBox(
+              color: Colors.black.withValues(alpha: 0.14),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.4),
+                      ),
+                      SizedBox(height: 10),
+                      Text('Updating future entries...'),
+                    ],
+                  ),
+                ),
+              ),
             ),
         ],
       ),

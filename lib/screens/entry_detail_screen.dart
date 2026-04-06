@@ -6,7 +6,6 @@ import '../models/daily_entry.dart';
 import '../models/purchase.dart';
 import '../providers/app_providers.dart';
 import '../services/purchase_repository.dart';
-import '../utils/gas_calculations.dart';
 import '../widgets/dashboard_layout.dart';
 import 'entry_screen.dart';
 
