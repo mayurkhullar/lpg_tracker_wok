@@ -17,6 +17,8 @@ class DailyEntry {
     required this.removedCylinders,
     required this.changeReason,
     required this.isAnomaly,
+    this.gasCost,
+    this.avgCostPerKg,
   });
 
   final String id;
@@ -32,6 +34,8 @@ class DailyEntry {
   final int removedCylinders;
   final String changeReason;
   final bool isAnomaly;
+  final double? gasCost;
+  final double? avgCostPerKg;
 
   factory DailyEntry.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
@@ -61,6 +65,8 @@ class DailyEntry {
       removedCylinders: (data['removedCylinders'] ?? 0) as int,
       changeReason: (data['changeReason'] ?? '') as String,
       isAnomaly: (data['isAnomaly'] ?? false) as bool,
+      gasCost: (data['gasCost'] as num?)?.toDouble(),
+      avgCostPerKg: (data['avgCostPerKg'] as num?)?.toDouble(),
     );
   }
 
@@ -78,6 +84,8 @@ class DailyEntry {
       'removedCylinders': removedCylinders,
       'changeReason': changeReason,
       'isAnomaly': isAnomaly,
+      if (gasCost != null) 'gasCost': gasCost,
+      if (avgCostPerKg != null) 'avgCostPerKg': avgCostPerKg,
     };
   }
 
@@ -95,6 +103,8 @@ class DailyEntry {
     int? removedCylinders,
     String? changeReason,
     bool? isAnomaly,
+    double? gasCost,
+    double? avgCostPerKg,
   }) {
     return DailyEntry(
       id: id ?? this.id,
@@ -110,6 +120,8 @@ class DailyEntry {
       removedCylinders: removedCylinders ?? this.removedCylinders,
       changeReason: changeReason ?? this.changeReason,
       isAnomaly: isAnomaly ?? this.isAnomaly,
+      gasCost: gasCost ?? this.gasCost,
+      avgCostPerKg: avgCostPerKg ?? this.avgCostPerKg,
     );
   }
 }

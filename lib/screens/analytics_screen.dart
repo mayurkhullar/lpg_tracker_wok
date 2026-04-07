@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/daily_entry.dart';
-import '../models/purchase.dart';
 import '../providers/app_providers.dart';
-import '../services/purchase_repository.dart';
 import '../utils/date_utils.dart';
 import '../utils/insight_calculations.dart';
 import '../widgets/dashboard_layout.dart';
@@ -246,25 +244,10 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     );
   }
 
-  double? _dailyGasCost({
-    required DailyEntry entry,
-    required List<Purchase> purchases,
-    required PurchaseRepository purchaseRepository,
-  }) {
-    if (!entry.usage.isFinite || entry.usage < 0) return null;
-    final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(
-      entry.date,
-      purchases,
-    );
-    if (costPerCylinder == null) return null;
-    final costPerKg = costPerCylinder / gasPerCylinder;
-    return entry.usage * costPerKg;
-  }
 
   @override
   Widget build(BuildContext context) {
     final entriesAsync = ref.watch(dailyEntriesProvider);
-    final purchasesAsync = ref.watch(purchasesProvider);
     final allEntries = entriesAsync.value ?? [];
     if (entriesAsync.isLoading && allEntries.isEmpty) {
       return const Center(child: CircularProgressIndicator());
@@ -273,8 +256,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       return const Center(child: Text('No analytics yet. Add entries first.'));
     }
 
-    final purchases = purchasesAsync.value ?? [];
-    final purchaseRepository = ref.watch(purchaseRepositoryProvider);
 
     final sortedEntries = [...allEntries]..sort((a, b) => a.date.compareTo(b.date));
     final today = normalizeDate(DateTime.now());
@@ -301,13 +282,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         ? singleEntry.usage
         : null;
     final singleGasRemaining = singleEntry?.gasRemaining;
-    final singleGasCost = singleEntry == null
-        ? null
-        : _dailyGasCost(
-            entry: singleEntry,
-            purchases: purchases,
-            purchaseRepository: purchaseRepository,
-          );
+    final singleGasCost = singleEntry?.gasCost;
     final singleSales = singleEntry?.sales;
     final singleGasPer1000 = gasPer1000Sales(gasUsed: singleGasUsed, sales: singleSales);
     final singleCylinderCount = singleEntry?.connectedCount;
@@ -332,33 +307,15 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         : validFilteredEntries.fold<double>(0, (sum, entry) => sum + entry.sales);
     final gasPer1000ForRange = gasPer1000Sales(gasUsed: totalUsage, sales: totalSales);
 
-    var hasCost = false;
-    final totalGasCost = validFilteredEntries.fold<double>(0, (sum, entry) {
-      final dailyCost = _dailyGasCost(
-        entry: entry,
-        purchases: purchases,
-        purchaseRepository: purchaseRepository,
-      );
-      if (dailyCost == null) return sum;
-      hasCost = true;
-      return sum + dailyCost;
-    });
+    final costEntries = validFilteredEntries.where((entry) => entry.gasCost != null).toList();
+    final totalGasCost = costEntries.fold<double>(0, (sum, entry) => sum + entry.gasCost!);
 
-    final totalGasCostValue = hasCost ? totalGasCost : null;
+    final totalGasCostValue = costEntries.isEmpty ? null : totalGasCost;
     final accentColor = Theme.of(context).colorScheme.primary;
 
     final weeklySummary = buildLast7DaysSummary(sortedEntries, today: today);
-    var weeklyHasCost = false;
-    final weeklyGasCost = weeklySummary.validEntries.fold<double>(0, (sum, entry) {
-      final dailyCost = _dailyGasCost(
-        entry: entry,
-        purchases: purchases,
-        purchaseRepository: purchaseRepository,
-      );
-      if (dailyCost == null) return sum;
-      weeklyHasCost = true;
-      return sum + dailyCost;
-    });
+    final weeklyCostEntries = weeklySummary.validEntries.where((entry) => entry.gasCost != null).toList();
+    final weeklyGasCost = weeklyCostEntries.fold<double>(0, (sum, entry) => sum + entry.gasCost!);
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -366,7 +323,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_isFiltering || purchasesAsync.isLoading || entriesAsync.isLoading)
+            if (_isFiltering || entriesAsync.isLoading)
               const Padding(
                 padding: EdgeInsets.only(bottom: 8),
                 child: LinearProgressIndicator(minHeight: 2),
@@ -480,7 +437,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                 ),
                 StatCard(
                   title: 'Total Gas Cost (7 days)',
-                  value: _currencyDisplay(weeklyHasCost ? weeklyGasCost : null),
+                  value: _currencyDisplay(weeklyCostEntries.isEmpty ? null : weeklyGasCost),
                 ),
                 StatCard(
                   title: 'Total Sales (7 days)',

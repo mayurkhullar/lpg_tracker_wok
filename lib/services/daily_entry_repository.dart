@@ -5,12 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/daily_entry.dart';
 import '../utils/date_utils.dart';
 import '../utils/gas_calculations.dart';
+import 'costing_service.dart';
 import 'firestore_service.dart';
 
 class DailyEntryRepository {
-  DailyEntryRepository(this._service);
+  DailyEntryRepository(this._service) : _costingService = CostingService(_service);
 
   final FirestoreService _service;
+  final CostingService _costingService;
 
   Stream<List<DailyEntry>> watchEntries({int limit = 120}) {
     return _service.dailyEntries
@@ -140,6 +142,7 @@ class DailyEntryRepository {
     }
 
     await batch.commit();
+    await _costingService.recomputeTimeline(recomputeUsage: true);
     await _recomputeAnomalies();
   }
 
@@ -181,27 +184,16 @@ class DailyEntryRepository {
       'changeReason': changeReason,
     }, SetOptions(merge: true));
 
-    final futureSnap = await _service.dailyEntries
-        .where('date', isGreaterThan: Timestamp.fromDate(normalizeDate(existing.date)))
-        .orderBy('date', descending: false)
-        .get();
+    await _costingService.recomputeTimeline(recomputeUsage: true);
+    await _recomputeAnomalies();
+  }
 
-    if (futureSnap.docs.isNotEmpty) {
-      var previousGasRemaining = gasRemaining;
-      final batch = FirebaseFirestore.instance.batch();
-      for (final doc in futureSnap.docs) {
-        final entry = DailyEntry.fromDoc(doc);
-        final usage = calculateDailyUsage(
-          previousGasRemaining,
-          entry.gasRemaining,
-          addedCylinders: entry.addedCylinders,
-        );
-        batch.set(_service.dailyEntries.doc(entry.id), {'usage': usage}, SetOptions(merge: true));
-        previousGasRemaining = entry.gasRemaining;
-      }
-      await batch.commit();
-    }
+  Future<void> deleteEntryAndRecalculateFuture(String id) async {
+    final existing = await getById(id);
+    if (existing == null) return;
 
+    await _service.dailyEntries.doc(id).delete();
+    await _costingService.recomputeTimeline(recomputeUsage: true);
     await _recomputeAnomalies();
   }
 

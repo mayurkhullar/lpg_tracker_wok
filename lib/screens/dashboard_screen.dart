@@ -3,10 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/daily_entry.dart';
-import '../models/purchase.dart';
 import '../providers/app_providers.dart';
-import '../services/purchase_repository.dart';
 import '../utils/date_utils.dart';
+import '../widgets/entry_summary_card.dart';
 import '../utils/insight_calculations.dart';
 import '../widgets/dashboard_layout.dart';
 import '../widgets/metric_card.dart';
@@ -52,29 +51,12 @@ class DashboardScreen extends ConsumerWidget {
     return Theme.of(context).colorScheme.onSurface;
   }
 
-  double? _dailyGasCost({
-    required DailyEntry? entry,
-    required List<Purchase> purchases,
-    required PurchaseRepository purchaseRepository,
-  }) {
-    if (entry == null || !entry.usage.isFinite || entry.usage < 0) return null;
-    final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(
-      entry.date,
-      purchases,
-    );
-    if (costPerCylinder == null) return null;
-    final costPerKg = costPerCylinder / gasPerCylinder;
-    return entry.usage * costPerKg;
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entriesAsync = ref.watch(dailyEntriesProvider);
-    final purchasesAsync = ref.watch(purchasesProvider);
     final entries = entriesAsync.value ?? [];
-    final purchases = purchasesAsync.value ?? [];
-    final isLoading = entriesAsync.isLoading || purchasesAsync.isLoading;
-    final purchaseRepository = ref.watch(purchaseRepositoryProvider);
+    final isLoading = entriesAsync.isLoading;
     final today = normalizeDate(DateTime.now());
 
     final todayMatches = entries.where((e) => normalizeDate(e.date) == today).toList();
@@ -85,11 +67,7 @@ class DashboardScreen extends ConsumerWidget {
         .toList();
 
     final monthlyTotal = monthEntries.fold<double>(0, (sum, e) => sum + e.usage);
-    final todayGasCost = _dailyGasCost(
-      entry: todayEntry,
-      purchases: purchases,
-      purchaseRepository: purchaseRepository,
-    );
+    final todayGasCost = todayEntry?.gasCost;
     final todayUsage = (todayEntry != null && isValidUsageEntry(entries, todayEntry))
         ? todayEntry.usage
         : null;
@@ -98,17 +76,8 @@ class DashboardScreen extends ConsumerWidget {
       sales: todayEntry?.sales,
     );
 
-    var monthHasCost = false;
-    final monthlyGasCost = monthEntries.fold<double>(0, (sum, entry) {
-      final dailyCost = _dailyGasCost(
-        entry: entry,
-        purchases: purchases,
-        purchaseRepository: purchaseRepository,
-      );
-      if (dailyCost == null) return sum;
-      monthHasCost = true;
-      return sum + dailyCost;
-    });
+    final monthCostEntries = monthEntries.where((entry) => entry.gasCost != null).toList();
+    final monthlyGasCost = monthCostEntries.fold<double>(0, (sum, entry) => sum + entry.gasCost!);
 
     final monthAverage = monthEntries.isEmpty ? null : monthlyTotal / monthEntries.length;
     final todayUsageColor = _getUsageColor(
@@ -120,17 +89,8 @@ class DashboardScreen extends ConsumerWidget {
     final highUsageInsight = buildHighUsageInsight(entries, today: today);
     final weeklySummary = buildLast7DaysSummary(entries, today: today);
 
-    var weeklyHasCost = false;
-    final weeklyGasCost = weeklySummary.validEntries.fold<double>(0, (sum, entry) {
-      final dailyCost = _dailyGasCost(
-        entry: entry,
-        purchases: purchases,
-        purchaseRepository: purchaseRepository,
-      );
-      if (dailyCost == null) return sum;
-      weeklyHasCost = true;
-      return sum + dailyCost;
-    });
+    final weeklyCostEntries = weeklySummary.validEntries.where((entry) => entry.gasCost != null).toList();
+    final weeklyGasCost = weeklyCostEntries.fold<double>(0, (sum, entry) => sum + entry.gasCost!);
 
     InsightBanner? insightBanner;
     if (todayEntry?.isAnomaly ?? false) {
@@ -146,11 +106,7 @@ class DashboardScreen extends ConsumerWidget {
       child: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(dailyEntriesProvider);
-          ref.invalidate(purchasesProvider);
-          await Future.wait([
-            ref.read(dailyEntriesProvider.future),
-            ref.read(purchasesProvider.future),
-          ]);
+          await ref.read(dailyEntriesProvider.future);
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -195,7 +151,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   StatCard(
                     title: 'Monthly Gas Cost',
-                    value: _currencyDisplay(monthHasCost ? monthlyGasCost : null),
+                    value: _currencyDisplay(monthCostEntries.isEmpty ? null : monthlyGasCost),
                   ),
                 ],
               ),
@@ -234,7 +190,7 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                   StatCard(
                     title: 'Total Gas Cost (7 days)',
-                    value: _currencyDisplay(weeklyHasCost ? weeklyGasCost : null),
+                    value: _currencyDisplay(weeklyCostEntries.isEmpty ? null : weeklyGasCost),
                   ),
                   StatCard(
                     title: 'Total Sales (7 days)',
@@ -246,63 +202,21 @@ class DashboardScreen extends ConsumerWidget {
               const SectionHeader('Recent Entries'),
               const SizedBox(height: 12),
               ...entries.take(3).map((entry) {
-                final cost = _dailyGasCost(
-                  entry: entry,
-                  purchases: purchases,
-                  purchaseRepository: purchaseRepository,
-                );
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                  child: EntrySummaryCard(
+                    date: entry.date,
+                    gasUsedText: _usageDisplay(entries, entry),
+                    gasCostText: _currencyDisplay(entry.gasCost),
+                    salesText: '₹${entry.sales.toStringAsFixed(2)}',
+                    gasUsedColor: _getUsageColor(
+                      context: context,
+                      usage: entry.usage,
+                      average: monthAverage,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  DateFormat.yMMMd().format(entry.date),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Gas Used: ${_usageDisplay(entries, entry)}',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: _getUsageColor(
-                                          context: context,
-                                          usage: entry.usage,
-                                          average: monthAverage,
-                                        ),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Cost: ${_currencyDisplay(cost)} • Sales: ₹${entry.sales.toStringAsFixed(2)}',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            entry.isAnomaly ? Icons.warning_amber_rounded : Icons.check_circle,
-                            color: entry.isAnomaly ? Colors.orange : Colors.blue,
-                          ),
-                        ],
-                      ),
+                    trailing: Icon(
+                      entry.isAnomaly ? Icons.warning_amber_rounded : Icons.check_circle,
+                      color: entry.isAnomaly ? Colors.orange : Colors.blue,
                     ),
                   ),
                 );

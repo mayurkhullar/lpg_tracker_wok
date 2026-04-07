@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/daily_entry.dart';
-import '../models/purchase.dart';
 import '../providers/app_providers.dart';
-import '../services/purchase_repository.dart';
 import '../widgets/dashboard_layout.dart';
 import 'entry_screen.dart';
 
@@ -21,6 +19,7 @@ class EntryDetailScreen extends ConsumerStatefulWidget {
 class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
   DailyEntry? _entry;
   bool _isLoading = true;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -38,119 +37,164 @@ class _EntryDetailScreenState extends ConsumerState<EntryDetailScreen> {
     });
   }
 
-  double? _dailyGasCost({
-    required DailyEntry entry,
-    required List<Purchase> purchases,
-    required PurchaseRepository purchaseRepository,
-  }) {
-    final costPerCylinder = purchaseRepository.resolveCostPerCylinderForDate(entry.date, purchases);
-    if (costPerCylinder == null) return null;
-    return entry.usage * (costPerCylinder / gasPerCylinder);
+  Future<void> _deleteEntry() async {
+    if (_entry == null || _isDeleting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete entry?'),
+        content: const Text('Deleting this entry will recalculate future entries. Continue?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      await ref.read(dailyEntryRepositoryProvider).deleteEntryAndRecalculateFuture(_entry!.id);
+      ref.invalidate(dailyEntriesProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Entry deleted. Future entries updated.')));
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
   }
+
+  String _currencyDisplay(double? value) => value == null ? '—' : '₹${value.toStringAsFixed(2)}';
 
   @override
   Widget build(BuildContext context) {
-    final purchases = ref.watch(purchasesProvider).value ?? [];
-    final purchaseRepository = ref.watch(purchaseRepositoryProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Entry Detail'),
-        actions: [
-          if (!_isLoading && _entry != null)
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () async {
-                final updated = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => EntryScreen(
-                      initialDate: _entry!.date,
-                      lockDate: true,
-                      popOnSave: true,
-                    ),
-                  ),
-                );
-                if (updated == true) {
-                  await _loadDetail();
-                }
-              },
-            ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _entry == null
-              ? const Center(child: Text('Entry not found'))
-              : ListView(
-                  padding: kScreenPadding,
-                  children: [
-                    _sectionCard(
-                      context,
-                      title: 'Summary',
-                      children: [
-                        _row('Date', DateFormat.yMMMd().format(_entry!.date)),
-                        _row('Gas Used', '${_entry!.usage.toStringAsFixed(2)} kg'),
-                        _row('Gas Remaining', '${_entry!.gasRemaining.toStringAsFixed(2)} kg'),
-                        _row(
-                          'Gas Cost',
-                          _dailyGasCost(
-                                    entry: _entry!,
-                                    purchases: purchases,
-                                    purchaseRepository: purchaseRepository,
-                                  ) ==
-                                  null
-                              ? '—'
-                              : '₹${_dailyGasCost(entry: _entry!, purchases: purchases, purchaseRepository: purchaseRepository)!.toStringAsFixed(2)}',
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('Entry Detail'),
+            actions: [
+              if (!_isLoading && _entry != null)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _deleteEntry,
+                ),
+              if (!_isLoading && _entry != null)
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () async {
+                    final updated = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) => EntryScreen(
+                          initialDate: _entry!.date,
+                          lockDate: true,
+                          popOnSave: true,
                         ),
-                        _row('Sales', '₹${_entry!.sales.toStringAsFixed(2)}'),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _sectionCard(
-                      context,
-                      title: 'Cylinders',
+                      ),
+                    );
+                    if (updated == true) {
+                      await _loadDetail();
+                    }
+                  },
+                ),
+            ],
+          ),
+          body: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _entry == null
+                  ? const Center(child: Text('Entry not found'))
+                  : ListView(
+                      padding: kScreenPadding,
                       children: [
-                        _row('Connected count', _entry!.connectedCount.toString()),
-                        _row('Added / Removed', '+${_entry!.addedCylinders} / -${_entry!.removedCylinders}'),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _sectionCard(
-                      context,
-                      title: 'Weights',
-                      children: [
-                        ..._entry!.weights.asMap().entries.map(
-                              (item) => _row('Cylinder ${item.key + 1}', '${item.value.toStringAsFixed(2)} kg'),
+                        _sectionCard(
+                          context,
+                          title: 'Summary',
+                          children: [
+                            _row('Date', DateFormat.yMMMd().format(_entry!.date)),
+                            _row('Gas Used', '${_entry!.usage.toStringAsFixed(2)} kg'),
+                            _row('Gas Remaining', '${_entry!.gasRemaining.toStringAsFixed(2)} kg'),
+                            _row('Gas Cost', _currencyDisplay(_entry!.gasCost)),
+                            _row('Sales', '₹${_entry!.sales.toStringAsFixed(2)}'),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _sectionCard(
+                          context,
+                          title: 'Cylinders',
+                          children: [
+                            _row('Connected count', _entry!.connectedCount.toString()),
+                            _row(
+                              'Added / Removed',
+                              '+${_entry!.addedCylinders} / -${_entry!.removedCylinders}',
                             ),
-                        _row('Gross total weight', '${_entry!.grossTotalWeight.toStringAsFixed(2)} kg'),
-                        _row('Gas remaining', '${_entry!.gasRemaining.toStringAsFixed(2)} kg'),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _sectionCard(
+                          context,
+                          title: 'Weights',
+                          children: [
+                            ..._entry!.weights.asMap().entries.map(
+                                  (item) => _row(
+                                    'Cylinder ${item.key + 1}',
+                                    '${item.value.toStringAsFixed(2)} kg',
+                                  ),
+                                ),
+                            _row('Gross total weight', '${_entry!.grossTotalWeight.toStringAsFixed(2)} kg'),
+                            _row('Gas remaining', '${_entry!.gasRemaining.toStringAsFixed(2)} kg'),
+                          ],
+                        ),
                       ],
                     ),
+          bottomNavigationBar: _isLoading || _entry == null
+              ? null
+              : SafeArea(
+                  minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      final updated = await Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => EntryScreen(
+                            initialDate: _entry!.date,
+                            lockDate: true,
+                            popOnSave: true,
+                          ),
+                        ),
+                      );
+                      if (updated == true) {
+                        await _loadDetail();
+                      }
+                    },
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edit Entry'),
+                  ),
+                ),
+        ),
+        if (_isDeleting) ...[
+          const ModalBarrier(dismissible: false, color: Colors.black38),
+          Center(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('Updating entries...'),
                   ],
                 ),
-      bottomNavigationBar: _isLoading || _entry == null
-          ? null
-          : SafeArea(
-              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: FilledButton.icon(
-                onPressed: () async {
-                  final updated = await Navigator.of(context).push<bool>(
-                    MaterialPageRoute(
-                      builder: (_) => EntryScreen(
-                        initialDate: _entry!.date,
-                        lockDate: true,
-                        popOnSave: true,
-                      ),
-                    ),
-                  );
-                  if (updated == true) {
-                    await _loadDetail();
-                  }
-                },
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Edit Entry'),
               ),
             ),
+          ),
+        ],
+      ],
     );
   }
 
