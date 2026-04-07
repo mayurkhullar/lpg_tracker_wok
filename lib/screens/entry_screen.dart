@@ -144,6 +144,66 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   TextStyle? _labelStyle(BuildContext context) => Theme.of(context).textTheme.titleMedium;
   TextStyle? _valueStyle(BuildContext context) =>
       Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
+  Widget _summaryMetricCard({
+    required BuildContext context,
+    required String title,
+    required String value,
+    String? helper,
+  }) {
+    return Card(
+      margin: EdgeInsets.zero,
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: _labelStyle(context)?.copyWith(fontSize: 14)),
+            const SizedBox(height: 4),
+            Text(value, style: _valueStyle(context)?.copyWith(fontSize: 22)),
+            if (helper != null) ...[
+              const SizedBox(height: 4),
+              Text(helper, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _inlineNotice({
+    required BuildContext context,
+    required String message,
+    required bool isError,
+  }) {
+    final bg = isError ? Theme.of(context).colorScheme.errorContainer : Colors.orange.withValues(alpha: 0.1);
+    final fg = isError ? Theme.of(context).colorScheme.onErrorContainer : Colors.orange.shade900;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(isError ? Icons.error_outline : Icons.warning_amber_rounded, size: 16, color: fg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: fg,
+                    fontWeight: isError ? FontWeight.w700 : FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   double? _sevenDayAverageUsageForDate(List<DailyEntry> entries, DateTime selectedDate) {
     final usageValues = entries
@@ -298,6 +358,22 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               title: const Text('Edit Entry'),
             )
           : null,
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: _isSaving ? null : _saveEntry,
+            child: _isSaving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           SafeArea(
@@ -309,77 +385,95 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                   kScreenPadding.left,
                   kScreenPadding.top,
                   kScreenPadding.right,
-                  kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom,
+                  kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom + 90,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SectionHeader('Basic Info'),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Card(
                       margin: EdgeInsets.zero,
                       elevation: 1,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       child: Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(statusLabel, style: Theme.of(context).textTheme.titleMedium),
+                            Text(statusLabel, style: Theme.of(context).textTheme.titleSmall),
                             if (_isLoadingEntry) ...[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               const LinearProgressIndicator(minHeight: 2),
                             ],
-                            const SizedBox(height: 12),
-                            Text('Date', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              onPressed: widget.lockDate
-                                  ? null
-                                  : () async {
-                                      final now = normalizeDate(DateTime.now());
-                                      final date = await showDatePicker(
-                                        context: context,
-                                        firstDate: DateTime(2020),
-                                        lastDate: now,
-                                        initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
-                                      );
-                                      if (date != null) {
-                                        setState(() => _selectedDate = normalizeDate(date));
-                                        await _loadEntryForSelectedDate();
-                                      }
-                                    },
-                              icon: const Icon(Icons.calendar_today),
-                              label: Text(DateFormat.yMMMd().format(_selectedDate)),
-                            ),
-                            const SizedBox(height: 16),
-                            Wrap(
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              spacing: 8,
-                              runSpacing: 8,
+                            const SizedBox(height: 10),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text('Connected Cylinders',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 15)),
-                                IconButton(
-                                  onPressed: _connectedCount > 1
-                                      ? () {
-                                          setState(() {
-                                            _connectedCount--;
-                                            _rebuildWeightFields(_connectedCount);
-                                          });
-                                        }
-                                      : null,
-                                  icon: const Icon(Icons.remove_circle_outline),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Date',
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14)),
+                                      const SizedBox(height: 6),
+                                      OutlinedButton.icon(
+                                        onPressed: widget.lockDate
+                                            ? null
+                                            : () async {
+                                                final now = normalizeDate(DateTime.now());
+                                                final date = await showDatePicker(
+                                                  context: context,
+                                                  firstDate: DateTime(2020),
+                                                  lastDate: now,
+                                                  initialDate: _selectedDate.isAfter(now) ? now : _selectedDate,
+                                                );
+                                                if (date != null) {
+                                                  setState(() => _selectedDate = normalizeDate(date));
+                                                  await _loadEntryForSelectedDate();
+                                                }
+                                              },
+                                        icon: const Icon(Icons.calendar_today, size: 18),
+                                        label: Text(DateFormat.yMMMd().format(_selectedDate)),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                Text('$_connectedCount', style: Theme.of(context).textTheme.titleLarge),
-                                IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _connectedCount++;
-                                      _rebuildWeightFields(_connectedCount);
-                                    });
-                                  },
-                                  icon: const Icon(Icons.add_circle_outline),
+                                const SizedBox(width: 10),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Connected',
+                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14)),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: _connectedCount > 1
+                                              ? () {
+                                                  setState(() {
+                                                    _connectedCount--;
+                                                    _rebuildWeightFields(_connectedCount);
+                                                  });
+                                                }
+                                              : null,
+                                          icon: const Icon(Icons.remove_circle_outline),
+                                        ),
+                                        Text('$_connectedCount', style: Theme.of(context).textTheme.titleLarge),
+                                        IconButton(
+                                          visualDensity: VisualDensity.compact,
+                                          onPressed: () {
+                                            setState(() {
+                                              _connectedCount++;
+                                              _rebuildWeightFields(_connectedCount);
+                                            });
+                                          },
+                                          icon: const Icon(Icons.add_circle_outline),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
@@ -389,7 +483,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                     ),
                     const SizedBox(height: kSectionSpacing),
                     const SectionHeader('Weights'),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     AnimatedSize(
                       duration: const Duration(milliseconds: 250),
                       child: Card(
@@ -397,16 +491,16 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                         elevation: 1,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Cylinder Weights (kg)', style: Theme.of(context).textTheme.titleMedium),
-                              const SizedBox(height: 12),
-                              ...List.generate(_connectedCount, (index) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: TextFormField(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Cylinder Weights (kg)', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 8),
+                            ...List.generate(_connectedCount, (index) {
+                              return Padding(
+                                padding: EdgeInsets.only(bottom: index == _connectedCount - 1 ? 0 : 8),
+                                child: TextFormField(
                                     controller: _weightControllers[index],
                                     focusNode: _weightFocusNodes[index],
                                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -429,6 +523,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                     decoration: InputDecoration(
                                       labelText: 'Cylinder ${index + 1} weight',
                                       border: const OutlineInputBorder(),
+                                      isDense: true,
                                     ),
                                     validator: (value) {
                                       final weight = double.tryParse(value ?? '');
@@ -447,104 +542,77 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       ),
                     ),
                     const SizedBox(height: kSectionSpacing),
-                    const SectionHeader('Results (Read-only)'),
-                    const SizedBox(height: 10),
+                    const SectionHeader('Quick Summary'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _summaryMetricCard(
+                            context: context,
+                            title: 'Gas Remaining',
+                            value: '${gasRemaining.toStringAsFixed(2)} kg',
+                            helper: 'After tare deduction',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _summaryMetricCard(
+                            context: context,
+                            title: 'Estimated Usage',
+                            value: estimatedUsage == null ? '—' : '${estimatedUsage.usage.toStringAsFixed(2)} kg',
+                            helper: 'Usage for today',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     Card(
                       margin: EdgeInsets.zero,
                       elevation: 1,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       child: Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Gas Remaining', style: _labelStyle(context)),
-                            const SizedBox(height: 4),
-                            Text('${gasRemaining.toStringAsFixed(2)} kg', style: _valueStyle(context)),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Based on cylinder weight minus tare (19.1 kg each)',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 12),
                             Text(
                               'Yesterday gas remaining: ${yesterdayEntry?.gasRemaining.toStringAsFixed(2) ?? '—'} kg',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                             ),
-                            const SizedBox(height: 8),
-                            Text('Estimated Usage Today', style: _labelStyle(context)),
                             const SizedBox(height: 4),
-                            Text(
-                              estimatedUsage == null ? '—' : '${estimatedUsage.usage.toStringAsFixed(2)} kg',
-                              style: _valueStyle(context),
-                            ),
-                            if (estimatedUsage != null && estimatedUsage.blockingErrors.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              ...estimatedUsage.blockingErrors.map(
-                                (error) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).colorScheme.errorContainer,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      error,
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.onErrorContainer,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            if (estimatedUsage != null && estimatedUsage.warnings.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              ...estimatedUsage.warnings.map(
-                                (warning) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.withValues(alpha: 0.10),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      warning,
-                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Colors.orange.shade900,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 12),
                             Text(
                               'Gross total weight: ${grossTotal.toStringAsFixed(2)} kg',
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                             ),
+                            if (estimatedUsage != null && estimatedUsage.blockingErrors.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              ...estimatedUsage.blockingErrors.map(
+                                (error) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: _inlineNotice(context: context, message: error, isError: true),
+                                ),
+                              ),
+                            ],
+                            if (estimatedUsage != null && estimatedUsage.warnings.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              ...estimatedUsage.warnings.map(
+                                (warning) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: _inlineNotice(context: context, message: warning, isError: false),
+                                ),
+                              ),
+                            ],
                             if (_addedCylinders > 0) ...[
-                              const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  '+$_addedCylinders cylinder${_addedCylinders == 1 ? '' : 's'} added. Usage adjusted.',
-                                  style: const TextStyle(color: Colors.orange),
-                                ),
+                              const SizedBox(height: 6),
+                              _inlineNotice(
+                                context: context,
+                                message:
+                                    '+$_addedCylinders cylinder${_addedCylinders == 1 ? '' : 's'} added. Usage adjusted.',
+                                isError: false,
                               ),
                             ],
                           ],
@@ -552,15 +620,16 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                       ),
                     ),
                     const SizedBox(height: kSectionSpacing),
-                    const SectionHeader('Sales'),
-                    const SizedBox(height: 10),
+                    const SectionHeader('Operational Details'),
+                    const SizedBox(height: 8),
                     Card(
                       margin: EdgeInsets.zero,
                       elevation: 1,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       child: Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             TextFormField(
                               controller: _salesController,
@@ -569,6 +638,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                 prefixText: '₹ ',
                                 labelText: 'Sales',
                                 border: OutlineInputBorder(),
+                                isDense: true,
                               ),
                               validator: (value) {
                                 final d = double.tryParse(value ?? '');
@@ -577,45 +647,32 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                 return null;
                               },
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: kSectionSpacing),
-                    const SectionHeader('Adjustments'),
-                    const SizedBox(height: 10),
-                    Card(
-                      margin: EdgeInsets.zero,
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
+                            Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 8),
                             TextFormField(
                               controller: _addedCylindersController,
                               keyboardType: TextInputType.number,
                               decoration: const InputDecoration(
                                 labelText: 'Added cylinders',
                                 border: OutlineInputBorder(),
+                                isDense: true,
                               ),
                               onChanged: (v) => setState(() => _addedCylinders = int.tryParse(v) ?? 0),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 8),
                             TextFormField(
                               controller: _removedCylindersController,
                               keyboardType: TextInputType.number,
                               decoration: const InputDecoration(
                                 labelText: 'Removed cylinders',
                                 border: OutlineInputBorder(),
+                                isDense: true,
                               ),
                               onChanged: (v) => setState(() => _removedCylinders = int.tryParse(v) ?? 0),
                             ),
                             if (_countChanged) ...[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               DropdownButtonFormField<String>(
                                 initialValue: _reason,
                                 items: const [
@@ -627,36 +684,24 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                 decoration: const InputDecoration(
                                   labelText: 'Change reason',
                                   border: OutlineInputBorder(),
+                                  isDense: true,
                                 ),
                                 onChanged: (v) => setState(() => _reason = v ?? 'Maintenance'),
                               ),
                               if (_reason == 'Other') ...[
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 TextFormField(
                                   controller: _otherReasonController,
                                   decoration: const InputDecoration(
                                     labelText: 'Other reason',
                                     border: OutlineInputBorder(),
+                                    isDense: true,
                                   ),
                                 ),
                               ],
                             ],
                           ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: kSectionSpacing),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _isSaving ? null : _saveEntry,
-                        child: _isSaving
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
                       ),
                     ),
                   ],
