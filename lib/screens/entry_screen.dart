@@ -145,6 +145,18 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
   TextStyle? _valueStyle(BuildContext context) =>
       Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700);
 
+  double? _sevenDayAverageUsageForDate(List<DailyEntry> entries, DateTime selectedDate) {
+    final usageValues = entries
+        .where((entry) => normalizeDate(entry.date).isBefore(selectedDate))
+        .map((entry) => entry.usage)
+        .where((usage) => usage > 0)
+        .take(7)
+        .toList();
+    if (usageValues.isEmpty) return null;
+    final total = usageValues.fold<double>(0, (sum, usage) => sum + usage);
+    return total / usageValues.length;
+  }
+
   Future<void> _saveEntry() async {
     if (!_formKey.currentState!.validate()) return;
     final today = normalizeDate(DateTime.now());
@@ -158,6 +170,24 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final repository = ref.read(dailyEntryRepositoryProvider);
     final sales = double.parse(_salesController.text.trim());
     final changeReason = _reason == 'Other' ? _otherReasonController.text.trim() : _reason;
+    final entries = ref.read(dailyEntriesProvider).value ?? [];
+    final previousEntry = entries
+        .where((entry) => normalizeDate(entry.date).isBefore(_selectedDate))
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final yesterdayEntry = previousEntry.isEmpty ? null : previousEntry.first;
+
+    final gasRemaining = calculateGasRemaining(_weights(), _connectedCount);
+    final avgUsage = _sevenDayAverageUsageForDate(entries, _selectedDate);
+    final usageValidation = yesterdayEntry == null
+        ? null
+        : calculateDailyUsageWithWarnings(
+            yesterdayEntry.gasRemaining,
+            gasRemaining,
+            addedCylinders: _addedCylinders,
+            removedCylinders: _removedCylinders,
+            sevenDayAverageUsage: avgUsage,
+          );
 
     setState(() => _isSaving = true);
     try {
@@ -190,6 +220,18 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Entry saved successfully')),
         );
+      }
+
+      if (usageValidation != null && usageValidation.warnings.isNotEmpty) {
+        for (final warning in usageValidation.warnings) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(warning),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
 
       if (!mounted) return;
@@ -225,10 +267,12 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     final gasRemaining = calculateGasRemaining(weights, _connectedCount);
     final estimatedUsage = yesterdayEntry == null
         ? null
-        : calculateDailyUsage(
+        : calculateDailyUsageWithWarnings(
             yesterdayEntry.gasRemaining,
             gasRemaining,
             addedCylinders: _addedCylinders,
+            removedCylinders: _removedCylinders,
+            sevenDayAverageUsage: _sevenDayAverageUsageForDate(entries, _selectedDate),
           );
 
     final statusLabel = _isEditingExistingEntry
@@ -420,9 +464,32 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                             Text('Estimated Usage Today', style: _labelStyle(context)),
                             const SizedBox(height: 4),
                             Text(
-                              estimatedUsage == null ? '—' : '${estimatedUsage.toStringAsFixed(2)} kg',
+                              estimatedUsage == null ? '—' : '${estimatedUsage.usage.toStringAsFixed(2)} kg',
                               style: _valueStyle(context),
                             ),
+                            if (estimatedUsage != null && estimatedUsage.warnings.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              ...estimatedUsage.warnings.map(
+                                (warning) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withValues(alpha: 0.10),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      warning,
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Colors.orange.shade900,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 12),
                             Text(
                               'Gross total weight: ${grossTotal.toStringAsFixed(2)} kg',

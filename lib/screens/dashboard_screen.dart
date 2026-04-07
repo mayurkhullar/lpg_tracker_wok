@@ -51,6 +51,16 @@ class DashboardScreen extends ConsumerWidget {
     return Theme.of(context).colorScheme.onSurface;
   }
 
+  bool _isYesterday(DateTime date, DateTime today) {
+    final normalizedToday = normalizeDate(today);
+    final normalizedDate = normalizeDate(date);
+    return normalizedDate == normalizedToday.subtract(const Duration(days: 1));
+  }
+
+  String _labelPrefix(DailyEntry? latestEntry, DateTime today) {
+    if (latestEntry == null) return 'Latest';
+    return _isYesterday(latestEntry.date, today) ? "Yesterday's" : 'Latest';
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,42 +68,43 @@ class DashboardScreen extends ConsumerWidget {
     final entries = entriesAsync.value ?? [];
     final isLoading = entriesAsync.isLoading;
     final today = normalizeDate(DateTime.now());
-
-    final todayMatches = entries.where((e) => normalizeDate(e.date) == today).toList();
-    final todayEntry = todayMatches.isEmpty ? null : todayMatches.first;
+    final latestEntry = entries.isEmpty ? null : entries.first;
+    final labelPrefix = _labelPrefix(latestEntry, today);
+    final latestDateText = latestEntry == null ? '' : DateFormat.yMMMd().format(latestEntry.date);
 
     final monthEntries = entries
         .where((e) => e.date.year == today.year && e.date.month == today.month)
         .toList();
 
     final monthlyTotal = monthEntries.fold<double>(0, (sum, e) => sum + e.usage);
-    final todayGasCost = todayEntry?.gasCost;
-    final todayUsage = (todayEntry != null && isValidUsageEntry(entries, todayEntry))
-        ? todayEntry.usage
+    final latestGasCost = latestEntry?.gasCost;
+    final latestUsage = (latestEntry != null && isValidUsageEntry(entries, latestEntry))
+        ? latestEntry.usage
         : null;
-    final todayEfficiency = gasPer1000Sales(
-      gasUsed: todayUsage,
-      sales: todayEntry?.sales,
+    final latestEfficiency = gasPer1000Sales(
+      gasUsed: latestUsage,
+      sales: latestEntry?.sales,
     );
 
     final monthCostEntries = monthEntries.where((entry) => entry.gasCost != null).toList();
     final monthlyGasCost = monthCostEntries.fold<double>(0, (sum, entry) => sum + entry.gasCost!);
 
     final monthAverage = monthEntries.isEmpty ? null : monthlyTotal / monthEntries.length;
-    final todayUsageColor = _getUsageColor(
+    final latestUsageColor = _getUsageColor(
       context: context,
-      usage: todayUsage,
+      usage: latestUsage,
       average: monthAverage,
     );
 
-    final highUsageInsight = buildHighUsageInsight(entries, today: today);
+    final insightReferenceDay = latestEntry?.date ?? today;
+    final highUsageInsight = buildHighUsageInsight(entries, today: insightReferenceDay);
     final weeklySummary = buildLast7DaysSummary(entries, today: today);
 
     final weeklyCostEntries = weeklySummary.validEntries.where((entry) => entry.gasCost != null).toList();
     final weeklyGasCost = weeklyCostEntries.fold<double>(0, (sum, entry) => sum + entry.gasCost!);
 
     InsightBanner? insightBanner;
-    if (todayEntry?.isAnomaly ?? false) {
+    if (latestEntry?.isAnomaly ?? false) {
       insightBanner = InsightBanner(
         message: 'Anomaly detected in usage trend. Please verify readings.',
         icon: Icons.warning_amber_rounded,
@@ -120,29 +131,29 @@ class DashboardScreen extends ConsumerWidget {
                   child: LinearProgressIndicator(minHeight: 2),
                 ),
               StatCard(
-                title: 'Gas Used Today',
-                value: _usageDisplay(entries, todayEntry),
+                title: '$labelPrefix Gas Used${latestDateText.isEmpty ? '' : ' ($latestDateText)'}',
+                value: _usageDisplay(entries, latestEntry),
                 isPrimary: true,
-                color: todayUsageColor,
+                color: latestUsageColor,
               ),
               const SizedBox(height: 12),
               ResponsiveGrid(
                 children: [
                   StatCard(
-                    title: 'Gas Remaining',
-                    value: todayEntry == null ? '—' : '${todayEntry.gasRemaining.toStringAsFixed(2)} kg',
+                    title: '$labelPrefix Gas Remaining',
+                    value: latestEntry == null ? '—' : '${latestEntry.gasRemaining.toStringAsFixed(2)} kg',
                   ),
                   StatCard(
-                    title: 'Gas Cost Today',
-                    value: _currencyDisplay(todayGasCost),
+                    title: '$labelPrefix Gas Cost',
+                    value: _currencyDisplay(latestGasCost),
                   ),
                   StatCard(
-                    title: 'Sales Today',
-                    value: todayEntry == null ? '—' : '₹${todayEntry.sales.toStringAsFixed(2)}',
+                    title: '$labelPrefix Sales',
+                    value: latestEntry == null ? '—' : '₹${latestEntry.sales.toStringAsFixed(2)}',
                   ),
                   StatCard(
                     title: 'Gas per ₹1000 Sales',
-                    value: _gasPerThousandDisplay(todayEfficiency),
+                    value: _gasPerThousandDisplay(latestEfficiency),
                     valueMaxLines: 3,
                   ),
                   StatCard(
@@ -158,7 +169,7 @@ class DashboardScreen extends ConsumerWidget {
               if (highUsageInsight.isHighUsage) ...[
                 const SizedBox(height: 12),
                 InsightBanner(
-                  message: '⚠ Higher than usual usage today '
+                  message: '⚠ Higher than usual usage in latest entry '
                       '(+${highUsageInsight.percentAboveAverage!.toStringAsFixed(0)}%)',
                   icon: Icons.warning_amber_rounded,
                   textColor: Colors.orange.shade900,

@@ -90,11 +90,12 @@ class DailyEntryRepository {
     final daysDiff = previous == null ? 1 : targetDate.difference(normalizeDate(previous.date)).inDays;
     final usageAcrossGap = previous == null
         ? 0.0
-        : calculateDailyUsage(
+        : calculateDailyUsageWithWarnings(
             previous.gasRemaining,
             gasRemaining,
             addedCylinders: addedCylinders,
-          );
+            removedCylinders: removedCylinders,
+          ).usage;
     final distributedUsage = daysDiff <= 0 ? 0.0 : usageAcrossGap / daysDiff;
 
     final newEntry = DailyEntry(
@@ -165,11 +166,12 @@ class DailyEntryRepository {
     final grossTotalWeight = calculateGrossTotal(weights);
     final updatedUsage = previous == null
         ? 0.0
-        : calculateDailyUsage(
+        : calculateDailyUsageWithWarnings(
             previous.gasRemaining,
             gasRemaining,
             addedCylinders: addedCylinders,
-          );
+            removedCylinders: removedCylinders,
+          ).usage;
 
     await _service.dailyEntries.doc(id).set({
       'connectedCount': connectedCount,
