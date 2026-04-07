@@ -189,6 +189,19 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
             sevenDayAverageUsage: avgUsage,
           );
 
+    if (usageValidation != null && usageValidation.blockingErrors.isNotEmpty) {
+      for (final error in usageValidation.blockingErrors) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       if (_isEditingExistingEntry && widget.lockDate) {
@@ -467,6 +480,29 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                               estimatedUsage == null ? '—' : '${estimatedUsage.usage.toStringAsFixed(2)} kg',
                               style: _valueStyle(context),
                             ),
+                            if (estimatedUsage != null && estimatedUsage.blockingErrors.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              ...estimatedUsage.blockingErrors.map(
+                                (error) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).colorScheme.errorContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      error,
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.onErrorContainer,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                             if (estimatedUsage != null && estimatedUsage.warnings.isNotEmpty) ...[
                               const SizedBox(height: 10),
                               ...estimatedUsage.warnings.map(

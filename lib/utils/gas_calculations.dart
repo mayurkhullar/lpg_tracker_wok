@@ -6,10 +6,12 @@ const double kHighUsageFallbackThresholdKg = 8.0;
 class UsageValidationResult {
   const UsageValidationResult({
     required this.usage,
+    required this.blockingErrors,
     required this.warnings,
   });
 
   final double usage;
+  final List<String> blockingErrors;
   final List<String> warnings;
 }
 
@@ -57,22 +59,27 @@ UsageValidationResult calculateDailyUsageWithWarnings(
   int removedCylinders = 0,
   double? sevenDayAverageUsage,
 }) {
+  const gasIncreaseWithoutAddMessage =
+      'Gas increased compared to yesterday, but no cylinders were added. Please correct the entry.';
+  const impossibleNegativeUsageMessage =
+      'This entry creates impossible negative usage. Please check weights and cylinder movement.';
+
+  final blockingErrors = <String>[];
   final warnings = <String>[];
   final addedGas = addedCylinders * kMaxGasContentPerCylinderKg;
   final rawUsage = (previousGasRemaining + addedGas) - currentGasRemaining;
-  var usage = calculateDailyUsage(
+  final usage = calculateDailyUsage(
     previousGasRemaining,
     currentGasRemaining,
     addedCylinders: addedCylinders,
   );
 
   if (currentGasRemaining > previousGasRemaining && addedCylinders == 0) {
-    warnings.add('Gas increased but no cylinders were added. Please verify entries.');
+    blockingErrors.add(gasIncreaseWithoutAddMessage);
   }
 
   if (rawUsage < 0 && addedCylinders == 0) {
-    usage = 0;
-    warnings.add('Invalid gas calculation detected. Check cylinder entries.');
+    blockingErrors.add(impossibleNegativeUsageMessage);
   }
 
   final highUsageThreshold = sevenDayAverageUsage != null && sevenDayAverageUsage > 0
@@ -92,6 +99,7 @@ UsageValidationResult calculateDailyUsageWithWarnings(
 
   return UsageValidationResult(
     usage: clampGas(usage),
+    blockingErrors: blockingErrors,
     warnings: warnings,
   );
 }
