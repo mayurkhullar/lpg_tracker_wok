@@ -177,13 +177,16 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
     required String message,
     required bool isError,
   }) {
-    final bg = isError ? Theme.of(context).colorScheme.errorContainer : Colors.orange.withValues(alpha: 0.1);
+    final bg = isError ? Theme.of(context).colorScheme.errorContainer : Colors.orange.withValues(alpha: 0.16);
     final fg = isError ? Theme.of(context).colorScheme.onErrorContainer : Colors.orange.shade900;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: bg,
+        border: Border.all(
+          color: isError ? Theme.of(context).colorScheme.error.withValues(alpha: 0.4) : Colors.orange.shade300,
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -196,7 +199,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: fg,
-                    fontWeight: isError ? FontWeight.w700 : FontWeight.w600,
+                    fontWeight: isError ? FontWeight.w700 : FontWeight.w700,
                   ),
             ),
           ),
@@ -358,22 +361,6 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
               title: const Text('Edit Entry'),
             )
           : null,
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: _isSaving ? null : _saveEntry,
-            child: _isSaving
-                ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
-          ),
-        ),
-      ),
       body: Stack(
         children: [
           SafeArea(
@@ -385,7 +372,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                   kScreenPadding.left,
                   kScreenPadding.top,
                   kScreenPadding.right,
-                  kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom + 90,
+                  kScreenPadding.bottom + MediaQuery.of(context).viewInsets.bottom + 16,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,9 +393,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                               const SizedBox(height: 6),
                               const LinearProgressIndicator(minHeight: 2),
                             ],
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
                                   child: Column(
@@ -440,40 +427,52 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Connected',
-                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14)),
-                                    Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          visualDensity: VisualDensity.compact,
-                                          onPressed: _connectedCount > 1
-                                              ? () {
-                                                  setState(() {
-                                                    _connectedCount--;
-                                                    _rebuildWeightFields(_connectedCount);
-                                                  });
-                                                }
-                                              : null,
-                                          icon: const Icon(Icons.remove_circle_outline),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Connected Cylinders',
+                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Theme.of(context).colorScheme.outline),
+                                          borderRadius: BorderRadius.circular(8),
                                         ),
-                                        Text('$_connectedCount', style: Theme.of(context).textTheme.titleLarge),
-                                        IconButton(
-                                          visualDensity: VisualDensity.compact,
-                                          onPressed: () {
-                                            setState(() {
-                                              _connectedCount++;
-                                              _rebuildWeightFields(_connectedCount);
-                                            });
-                                          },
-                                          icon: const Icon(Icons.add_circle_outline),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            IconButton(
+                                              visualDensity: VisualDensity.compact,
+                                              onPressed: _connectedCount > 1
+                                                  ? () {
+                                                      setState(() {
+                                                        _connectedCount--;
+                                                        _rebuildWeightFields(_connectedCount);
+                                                      });
+                                                    }
+                                                  : null,
+                                              icon: const Icon(Icons.remove_circle_outline),
+                                            ),
+                                            Text('$_connectedCount', style: Theme.of(context).textTheme.titleLarge),
+                                            IconButton(
+                                              visualDensity: VisualDensity.compact,
+                                              onPressed: () {
+                                                setState(() {
+                                                  _connectedCount++;
+                                                  _rebuildWeightFields(_connectedCount);
+                                                });
+                                              },
+                                              icon: const Icon(Icons.add_circle_outline),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -491,48 +490,65 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                         elevation: 1,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Cylinder Weights (kg)', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 8),
-                            ...List.generate(_connectedCount, (index) {
-                              return Padding(
-                                padding: EdgeInsets.only(bottom: index == _connectedCount - 1 ? 0 : 8),
-                                child: TextFormField(
-                                    controller: _weightControllers[index],
-                                    focusNode: _weightFocusNodes[index],
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    textInputAction:
-                                        index == _connectedCount - 1 ? TextInputAction.done : TextInputAction.next,
-                                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
-                                    autofocus: index == 0,
-                                    onChanged: (_) => setState(() {}),
-                                    onTap: () {
-                                      _weightControllers[index].selection = TextSelection(
-                                        baseOffset: 0,
-                                        extentOffset: _weightControllers[index].text.length,
-                                      );
-                                    },
-                                    onFieldSubmitted: (_) {
-                                      if (index < _connectedCount - 1) {
-                                        _weightFocusNodes[index + 1].requestFocus();
-                                      }
-                                    },
-                                    decoration: InputDecoration(
-                                      labelText: 'Cylinder ${index + 1} weight',
-                                      border: const OutlineInputBorder(),
-                                      isDense: true,
-                                    ),
-                                    validator: (value) {
-                                      final weight = double.tryParse(value ?? '');
-                                      if (weight == null) return 'Required';
-                                      if (weight < 19.1 || weight > 38) {
-                                        return 'Weight must be between 19.1 and 38';
-                                      }
-                                      return null;
-                                    },
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Cylinder Weights (kg)', style: Theme.of(context).textTheme.titleMedium),
+                              const SizedBox(height: 8),
+                              ...List.generate(_connectedCount, (index) {
+                                return Container(
+                                  margin: EdgeInsets.only(bottom: index == _connectedCount - 1 ? 0 : 8),
+                                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Cylinder ${index + 1}',
+                                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      TextFormField(
+                                        controller: _weightControllers[index],
+                                        focusNode: _weightFocusNodes[index],
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        textInputAction:
+                                            index == _connectedCount - 1 ? TextInputAction.done : TextInputAction.next,
+                                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))],
+                                        autofocus: index == 0,
+                                        onChanged: (_) => setState(() {}),
+                                        onTap: () {
+                                          _weightControllers[index].selection = TextSelection(
+                                            baseOffset: 0,
+                                            extentOffset: _weightControllers[index].text.length,
+                                          );
+                                        },
+                                        onFieldSubmitted: (_) {
+                                          if (index < _connectedCount - 1) {
+                                            _weightFocusNodes[index + 1].requestFocus();
+                                          }
+                                        },
+                                        decoration: const InputDecoration(
+                                          labelText: 'Weight (kg)',
+                                          border: OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        validator: (value) {
+                                          final weight = double.tryParse(value ?? '');
+                                          if (weight == null) return 'Required';
+                                          if (weight < 19.1 || weight > 38) {
+                                            return 'Weight must be between 19.1 and 38';
+                                          }
+                                          return null;
+                                        },
+                                      ),
+                                    ],
                                   ),
                                 );
                               }),
@@ -647,9 +663,9 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 10),
-                            Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleSmall),
                             const SizedBox(height: 8),
+                            Text('Cylinder Count Change', style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _addedCylindersController,
                               keyboardType: TextInputType.number,
@@ -660,7 +676,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                               ),
                               onChanged: (v) => setState(() => _addedCylinders = int.tryParse(v) ?? 0),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _removedCylindersController,
                               keyboardType: TextInputType.number,
@@ -672,7 +688,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                               onChanged: (v) => setState(() => _removedCylinders = int.tryParse(v) ?? 0),
                             ),
                             if (_countChanged) ...[
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               DropdownButtonFormField<String>(
                                 initialValue: _reason,
                                 items: const [
@@ -689,7 +705,7 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                                 onChanged: (v) => setState(() => _reason = v ?? 'Maintenance'),
                               ),
                               if (_reason == 'Other') ...[
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 6),
                                 TextFormField(
                                   controller: _otherReasonController,
                                   decoration: const InputDecoration(
@@ -704,6 +720,24 @@ class _EntryScreenState extends ConsumerState<EntryScreen> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _isSaving ? null : _saveEntry,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(_isEditingExistingEntry ? 'Update Daily Entry' : 'Save Daily Entry'),
+                      ),
+                    ),
+                    SizedBox(height: MediaQuery.of(context).viewPadding.bottom + 12),
                   ],
                 ),
               ),
